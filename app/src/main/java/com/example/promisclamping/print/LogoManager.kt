@@ -1,7 +1,6 @@
 package com.example.promisclamping.print
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID

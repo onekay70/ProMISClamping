@@ -2,7 +2,14 @@ package com.example.promisclamping.network
 
 import UploadService
 import android.content.Context
+import com.example.promisclamping.App
 import com.example.promisclamping.Config
+import com.example.promisclamping.Config.SEC_TOKEN_LOGIN
+import com.example.promisclamping.Config.SEC_TOKEN_PASSWORD
+import com.example.promisclamping.data.local.TokenStore
+import com.example.promisclamping.data.remote.api.AuthApi
+import com.example.promisclamping.data.remote.interceptor.AuthInterceptor
+import com.example.promisclamping.data.repository.AuthRepository
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -22,34 +29,46 @@ object ApiClient {
         // return prefs?.getString("token", null)
     }
 
-    // 🧱 Interceptor that adds the Authorization header
-    class AuthInterceptor(private val context: Context?) : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val token = getAuthToken(context)
-            val request = if (!token.isNullOrEmpty()) {
-                chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer $token")
-                    .build()
-            } else chain.request()
-            return chain.proceed(request)
+    // create Retrofit instance for the authentication endpoint
+    private fun authRetrofit(): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://gerbang.bph.gov.my/api/")   // must end with /
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+    // lazy single instance of the AuthApi interface
+    private val authApi: AuthApi by lazy {
+        authRetrofit().create(AuthApi::class.java)
+    }
+
+    // Somewhere central (e.g., in an object Network or inside your Application class)
+    private fun makeAuthRepo(context: Context): AuthRepository {
+        val app = context.applicationContext as App
+        val store = TokenStore(context.applicationContext)
+        return AuthRepository(
+            api = app.authApi,
+            store = store,
+            clientId = SEC_TOKEN_LOGIN,      // put these in BuildConfig, not hard-coded
+            clientSecret = SEC_TOKEN_PASSWORD
+        )
+    }
+
+    private fun httpClient(context: Context): OkHttpClient {
+        val repo = makeAuthRepo(context)
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
         }
+        return OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor(repo)) // ⬅️ our upgraded auth
+            .addInterceptor(logging)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build()
     }
 
-    private val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
-    }
-
-    // Add AuthInterceptor to every client
-    private fun httpClient(context: Context?) = OkHttpClient.Builder()
-        .addInterceptor(AuthInterceptor(context))
-        .addInterceptor(logging)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .build()
-
-    // Two clients for two ports
-    fun kompaun(context: Context?): ApiService =
+    // Use the same client for all services that require the token
+    fun kompaun(context: Context): ApiService =
         Retrofit.Builder()
             .baseUrl(Config.KOMPAUN_BASE_URL)
             .client(httpClient(context))
@@ -57,10 +76,9 @@ object ApiClient {
             .build()
             .create(ApiService::class.java)
 
-    // base URL must end with the resource path, e.g. ...:8093/upload/
-    fun upload(context: Context?): UploadService =
+    fun upload(context: Context): UploadService =
         Retrofit.Builder()
-            .baseUrl(Config.UPLOAD_BASE_URL)   // e.g. "http://192.168.0.25:8093/upload/"
+            .baseUrl(Config.UPLOAD_BASE_URL)
             .client(httpClient(context))
             .addConverterFactory(GsonConverterFactory.create())
             .build()

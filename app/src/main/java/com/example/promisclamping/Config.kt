@@ -14,5 +14,8 @@ object Config {
     const val SECURITY_TOKEN =
         "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJwcm9taXMiLCJzdWIiOiJhZG1pbl9wcm9taXMiLCJpYXQiOjE3NjIyODM1ODksImV4cCI6MTc2MjM2OTk4OX0.PrefUqyJUHwTUPecKyHd7EX4ZDHEoDW6RIHixcvsI9E"
 
+    const val SEC_TOKEN_LOGIN = "admin_promis"
+    const val SEC_TOKEN_PASSWORD = "Promis@112233"
+
     const val DEV_MAC_ADD = "00:80:A3:6E:A6:4C"
 }

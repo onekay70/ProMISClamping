@@ -48,18 +48,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.promisclamping.Config.DEV_MAC_ADD
 import com.example.promisclamping.models.ClampingRequestForm
 import com.example.promisclamping.models.ClampingResponseForm
 import com.example.promisclamping.models.VehicleType
 import com.example.promisclamping.network.ApiClient
 import com.example.promisclamping.print.LogoManager
-import com.example.promisclamping.print.LogoManager.uploadLogoAlpha
 import com.example.promisclamping.print.buildTsplNotisCajV2
-import com.example.promisclamping.print.testPrintHello
 import com.example.promisclamping.print.testPrintA
 import com.example.promisclamping.print.testPrintB
 import com.example.promisclamping.print.testPrintC
+import com.example.promisclamping.print.testPrintHello
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -73,9 +73,23 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+    private val app by lazy { application as App }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { DaftarKompaunScreen() } }
+
+        // optional: pre-fetch the token when the app starts
+        val repo = makeAuthRepo(this)
+        lifecycleScope.launch {
+            try { repo.getBearer() } catch (_: Exception) { /* log */ }
+        }
+
+        // set up UI
+        setContent {
+            MaterialTheme {
+                DaftarKompaunScreen()
+            }
+        }
     }
 }
 
