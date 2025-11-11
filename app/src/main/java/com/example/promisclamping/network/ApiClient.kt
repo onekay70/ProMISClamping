@@ -2,7 +2,6 @@ package com.example.promisclamping.network
 
 import UploadService
 import android.content.Context
-import com.example.promisclamping.App
 import com.example.promisclamping.Config
 import com.example.promisclamping.Config.SEC_TOKEN_LOGIN
 import com.example.promisclamping.Config.SEC_TOKEN_PASSWORD
@@ -10,9 +9,7 @@ import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.data.remote.api.AuthApi
 import com.example.promisclamping.data.remote.interceptor.AuthInterceptor
 import com.example.promisclamping.data.repository.AuthRepository
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -21,13 +18,13 @@ import java.util.concurrent.TimeUnit
 object ApiClient {
 
     // 🟢 Helper: reads token from Config or SharedPreferences
-    private fun getAuthToken(context: Context?): String? {
-        // for now just return Config.SECURITY_TOKEN
-        return Config.SECURITY_TOKEN
-        // OR, if dynamic:
-        // val prefs = context?.getSharedPreferences("auth", Context.MODE_PRIVATE)
-        // return prefs?.getString("token", null)
-    }
+//    private fun getAuthToken(context: Context?): String? {
+//        // for now just return Config.SECURITY_TOKEN
+//        return Config.SECURITY_TOKEN
+//        // OR, if dynamic:
+//        // val prefs = context?.getSharedPreferences("auth", Context.MODE_PRIVATE)
+//        // return prefs?.getString("token", null)
+//    }
 
     // create Retrofit instance for the authentication endpoint
     private fun authRetrofit(): Retrofit =
@@ -42,11 +39,10 @@ object ApiClient {
     }
 
     // Somewhere central (e.g., in an object Network or inside your Application class)
-    private fun makeAuthRepo(context: Context): AuthRepository {
-        val app = context.applicationContext as App
+    fun makeAuthRepo(context: Context): AuthRepository {
         val store = TokenStore(context.applicationContext)
         return AuthRepository(
-            api = app.authApi,
+            api = authApi,
             store = store,
             clientId = SEC_TOKEN_LOGIN,      // put these in BuildConfig, not hard-coded
             clientSecret = SEC_TOKEN_PASSWORD

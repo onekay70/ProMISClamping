@@ -23,6 +23,7 @@ data class ClampingResponseForm(
     val warna: String?,
     val noPetak: String?,
     val tempat: String?,
+    val lokasi: String?,
     val kadarKompaun: String?,
     val idPegawai: String?,
     val namaPegawai: String?,

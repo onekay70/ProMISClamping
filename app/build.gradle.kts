@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp.logging)
     implementation(libs.androidx.security)
+    implementation(files("libs/tscsdk.jar"))
 
     testImplementation(libs.junit)
 

@@ -5,14 +5,14 @@ object Config {
     const val KOMPAUN_BASE_URL = "http://192.168.1.5:8093/"
 
     //    const val KOMPAUN_BASE_URL = "https://gerbang.lokal.my/api/penguatkuasaan/v1/"
-    const val UPLOAD_BASE_URL = "http://192.168.1.5:8091/"
-//    const val UPLOAD_BASE_URL = "https://gerbang.lokal.my/api/upload/v1/"
+//    const val UPLOAD_BASE_URL = "http://192.168.1.5:8091/"
+    const val UPLOAD_BASE_URL = "https://gerbang.lokal.my/api/upload/v1/"
 
     // S3 / MinIO bucket name
     const val BUCKET_NAME = "kompaun"
 
-    const val SECURITY_TOKEN =
-        "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJwcm9taXMiLCJzdWIiOiJhZG1pbl9wcm9taXMiLCJpYXQiOjE3NjIyODM1ODksImV4cCI6MTc2MjM2OTk4OX0.PrefUqyJUHwTUPecKyHd7EX4ZDHEoDW6RIHixcvsI9E"
+//    const val SECURITY_TOKEN =
+//        "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJwcm9taXMiLCJzdWIiOiJhZG1pbl9wcm9taXMiLCJpYXQiOjE3NjIyODM1ODksImV4cCI6MTc2MjM2OTk4OX0.PrefUqyJUHwTUPecKyHd7EX4ZDHEoDW6RIHixcvsI9E"
 
     const val SEC_TOKEN_LOGIN = "admin_promis"
     const val SEC_TOKEN_PASSWORD = "Promis@112233"

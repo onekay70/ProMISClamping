@@ -6,11 +6,13 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.ContentResolver
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.util.Log
 import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -54,12 +56,14 @@ import com.example.promisclamping.models.ClampingRequestForm
 import com.example.promisclamping.models.ClampingResponseForm
 import com.example.promisclamping.models.VehicleType
 import com.example.promisclamping.network.ApiClient
+import com.example.promisclamping.network.ApiClient.makeAuthRepo
 import com.example.promisclamping.print.LogoManager
 import com.example.promisclamping.print.buildTsplNotisCajV2
-import com.example.promisclamping.print.testPrintA
-import com.example.promisclamping.print.testPrintB
-import com.example.promisclamping.print.testPrintC
-import com.example.promisclamping.print.testPrintHello
+import com.example.promisclamping.print.printBphNotisCajWithSdk
+import com.example.promisclamping.print.printBphNotisCajWithSdkV2
+import com.example.promisclamping.print.printBphNotisCajWithSdk_Debug
+import com.example.promisclamping.print.testPrintImageOnly
+import com.example.tscdll.TSCActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -73,6 +77,8 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+    val tsc = TSCActivity()
+
     private val app by lazy { application as App }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +87,10 @@ class MainActivity : ComponentActivity() {
         // optional: pre-fetch the token when the app starts
         val repo = makeAuthRepo(this)
         lifecycleScope.launch {
-            try { repo.getBearer() } catch (_: Exception) { /* log */ }
+            try {
+                repo.getBearer()
+            } catch (_: Exception) { /* log */
+            }
         }
 
         // set up UI
@@ -93,9 +102,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private val btPermissions = arrayOf(
+    Manifest.permission.BLUETOOTH_CONNECT,
+    Manifest.permission.BLUETOOTH_SCAN
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DaftarKompaunScreen() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        if (result.values.all { it }) {
+            Toast.makeText(context, "Bluetooth permissions granted", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Bluetooth permissions denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
     var lastSaved by remember { mutableStateOf<ClampingResponseForm?>(null) }
 
     val ctx = LocalContext.current
@@ -120,8 +146,6 @@ fun DaftarKompaunScreen() {
     var noKenderaan by remember { mutableStateOf("") }
     var blok by remember { mutableStateOf("BLOK F6") }
     var tempatKompaun by remember { mutableStateOf("PARKING") }
-    var gambarUri by remember { mutableStateOf<Uri?>(null) }
-    var gambarSizeBytes by remember { mutableStateOf<Long?>(null) }
 
     // Control flags
     var isSaving by remember { mutableStateOf(false) }
@@ -139,20 +163,6 @@ fun DaftarKompaunScreen() {
         "BLOK F9",
         "BLOK F10"
     )
-
-    // Image picker
-    val pickImage = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        gambarUri = uri
-        gambarSizeBytes = null
-        if (uri != null) {
-            runCatching {
-                val size = ctx.contentResolver.openFileDescriptor(uri, "r")?.statSize
-                gambarSizeBytes = size
-            }
-        }
-    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("DAFTAR KOMPAUN") }) },
@@ -229,6 +239,32 @@ fun DaftarKompaunScreen() {
                 enabled = !isSaving
             )
 
+            val context = LocalContext.current
+            var gambarBitmap by remember { mutableStateOf<Bitmap?>(null) }
+            var gambarUri by remember { mutableStateOf<Uri?>(null) }
+            var gambarSizeBytes by remember { mutableStateOf<Long?>(null) }
+
+            val pickImage = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.GetContent()
+            ) { uri ->
+                gambarUri = uri
+                gambarSizeBytes = null
+
+                if (uri != null) {
+                    // Get size
+                    runCatching {
+                        val size = context.contentResolver.openFileDescriptor(uri, "r")?.statSize
+                        gambarSizeBytes = size
+                    }
+
+                    // Decode bitmap for printing
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream?.close()
+                    gambarBitmap = bitmap
+                }
+            }
+
             // --- Gambar Upload ---
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Gambar Apitan")
@@ -247,6 +283,7 @@ fun DaftarKompaunScreen() {
                         )
                     }
                 }
+
                 val sizeOk = gambarSizeBytes?.let { it <= 5L * 1024 * 1024 } ?: true
                 if (gambarUri != null) {
                     Text(
@@ -265,7 +302,6 @@ fun DaftarKompaunScreen() {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 /* 🟩 SIMPAN */
                 Button(
                     enabled = !isSaving,
@@ -312,7 +348,7 @@ fun DaftarKompaunScreen() {
                                 }
 
                                 val jenisId = selectedJenis?.id       // The numeric ID
-                                val jenisLabel = selectedJenis?.label // The display name
+                                selectedJenis?.label // The display name
 
                                 // Step 2: save kompaun
                                 // Build request from your UI state (adjust names to your API)
@@ -357,35 +393,78 @@ fun DaftarKompaunScreen() {
                     OutlinedButton(onClick = {
                         scope.launch {
                             try {
-                                if (!hasBtConnectPermission()) {
-                                    permLauncher.launch(btPerms)
-                                    snackbarHostState.showSnackbar("Sila benarkan kebenaran Bluetooth.")
-                                    return@launch
+                                val missing = btPermissions.any {
+                                    ContextCompat.checkSelfPermission(
+                                        context,
+                                        it
+                                    ) != PackageManager.PERMISSION_GRANTED
                                 }
 
-                                val bmpBytes = context.assets.open("jata_malaysia_384px.bmp").readBytes()
-                                LogoManager.uploadLogoIfNeeded(DEV_MAC_ADD, bmpBytes)
+                                if (missing) {
+                                    launcher.launch(btPermissions)
+                                } else {
+                                    if (gambarBitmap != null) {
+                                        printBphNotisCajWithSdkV2(DEV_MAC_ADD, context, gambarBitmap,
+                                            noSiri = lastSaved?.noKompaun ?: "-",
+                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                            masa = lastSaved?.masaKompaunStr ?: "-",
+                                            noKenderaan = noKenderaan,
+                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                            jenisKenderaan = selectedJenis?.label ?: "",
+                                            lokasi = lastSaved?.lokasi ?: "-",
+                                            pegawai = lastSaved?.namaPegawai ?: "-",
+                                            savedId = savedId!!,
+                                            officerId = "BPH1234")
+                                    } else {
+                                        printBphNotisCajWithSdkV2(DEV_MAC_ADD, context,
+                                            noSiri = lastSaved?.noKompaun ?: "-",
+                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                            masa = lastSaved?.masaKompaunStr ?: "-",
+                                            noKenderaan = noKenderaan,
+                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                            jenisKenderaan = selectedJenis?.label ?: "",
+                                            lokasi = lastSaved?.lokasi ?: "-",
+                                            pegawai = lastSaved?.namaPegawai ?: "-",
+                                            savedId = savedId!!,
+                                            officerId = "BPH1234")
+                                    }
+                                }
 
-                                val tspl = buildTsplNotisCajV2(
-                                    noKompaun = lastSaved?.noKompaun ?: "-",
-                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-                                    masa = lastSaved?.masaKompaunStr ?: "-",
-                                    noKenderaan = noKenderaan,
-                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-                                    jenisKenderaan = selectedJenis?.label ?: "",
-                                    lokasi = tempatKompaun,
-                                    pegawai = lastSaved?.namaPegawai ?: "-",
-                                    savedId = savedId!!
-//                                    officerId = "BPH1234"
-                                )
-
-                                printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-                                snackbarHostState.showSnackbar("Cetak dihantar.")
-                            } catch (se: SecurityException) {
-                                snackbarHostState.showSnackbar("Kebenaran Bluetooth ditolak.")
-                            } catch (t: Throwable) {
-                                snackbarHostState.showSnackbar("Gagal cetak: ${t.message}")
+                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
                             }
+//                            try {
+//                                if (!hasBtConnectPermission()) {
+//                                    permLauncher.launch(btPerms)
+//                                    snackbarHostState.showSnackbar("Sila benarkan kebenaran Bluetooth.")
+//                                    return@launch
+//                                }
+//
+//                                val bmpBytes =
+//                                    context.assets.open("jata_malaysia_384px.bmp").readBytes()
+//                                LogoManager.uploadLogoIfNeeded(DEV_MAC_ADD, bmpBytes)
+//
+//                                val tspl = buildTsplNotisCajV2(
+//                                    noKompaun = lastSaved?.noKompaun ?: "-",
+//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+//                                    masa = lastSaved?.masaKompaunStr ?: "-",
+//                                    noKenderaan = noKenderaan,
+//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+//                                    jenisKenderaan = selectedJenis?.label ?: "",
+//                                    lokasi = tempatKompaun,
+//                                    pegawai = lastSaved?.namaPegawai ?: "-",
+//                                    savedId = savedId!!
+////                                    officerId = "BPH1234"
+//                                )
+//
+//                                printToTscOverBluetooth(DEV_MAC_ADD, tspl)
+//                                snackbarHostState.showSnackbar("Cetak dihantar.")
+//                            } catch (se: SecurityException) {
+//                                snackbarHostState.showSnackbar("Kebenaran Bluetooth ditolak.")
+//                            } catch (t: Throwable) {
+//                                snackbarHostState.showSnackbar("Gagal cetak: ${t.message}")
+//                            }
                         }
                     }) { Text("Cetak Kompaun") }
                 }
@@ -400,146 +479,171 @@ fun DaftarKompaunScreen() {
                     gambarSizeBytes = null
                     savedId = null
                 }) { Text("Daftar Baru") }
+            }
 
-//                /* 🟨 LOAD JATA IMAGE BUTTON */
+            // --- Buttons ---
+//            Row(
+//                horizontalArrangement = Arrangement.spacedBy(12.dp),
+//                verticalAlignment = Alignment.CenterVertically
+//            ) {
+//                /* 🟨 TRY PRINT */
+////                OutlinedButton(onClick = {
+////                    scope.launch {
+////                        try {
+////                            if (!hasBtConnectPermission()) {
+////                                permLauncher.launch(btPerms)
+////                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
+////                                return@launch
+////                            }
+////
+////                            val tspl = buildReceiptFromScratch(
+////                                noSiri = "BPH/2025/11/0057",
+////                                tarikh = "11/11/2025",
+////                                masa = "02:10 PM",
+////                                noKenderaan = "BNS1928",
+////                                kadarCaj = "RM 50.00",
+////                                jenisKenderaan = "KERETA",
+////                                lokasi = "PARKING BLOK F",
+////                                pegawai = "AZMIN BIN BUAS",
+////                                savedId = "f2b47a8ff7c94af7a6bcd7cb28f910c2",
+////                                officerId = "BPH1234"
+////                            )
+////
+////                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
+////                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
+////                        } catch (e: Exception) {
+////                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+////                        }
+////                    }
+////                }) {
+////                    Text("Try Print V1")
+////                }
+//
+//                /* 🟨 TRY PRINT */
+////                OutlinedButton(onClick = {
+////                    scope.launch {
+////                        try {
+////                            if (!hasBtConnectPermission()) {
+////                                permLauncher.launch(btPerms)
+////                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
+////                                return@launch
+////                            }
+////
+////                            val tspl = buildReceiptFromScratchV2(
+////                                noSiri = "BPH/2025/11/0057",
+////                                tarikh = "11/11/2025",
+////                                masa = "02:10 PM",
+////                                noKenderaan = "BNS1928",
+////                                kadarCaj = "RM 50.00",
+////                                jenisKenderaan = "KERETA",
+////                                lokasi = "PARKING BLOK F",
+////                                pegawai = "AZMIN BIN BUAS",
+////                                savedId = "f2b47a8ff7c94af7a6bcd7cb28f910c2",
+////                                officerId = "BPH1234"
+////                            )
+////
+////                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
+////
+////                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
+////                        } catch (e: Exception) {
+////                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+////                        }
+////                    }
+////                }) {
+////                    Text("Try Print V2")
+////                }
+//
 //                val context = LocalContext.current
-//                val bmpBytes = context.assets.open("jata_malaysia_384px.bmp").readBytes()
 //
 //                OutlinedButton(onClick = {
 //                    scope.launch {
 //                        try {
-//                            if (!hasBtConnectPermission()) {
-//                                permLauncher.launch(btPerms)
-//                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-//                                return@launch
+//                            val missing = btPermissions.any {
+//                                ContextCompat.checkSelfPermission(
+//                                    context,
+//                                    it
+//                                ) != PackageManager.PERMISSION_GRANTED
 //                            }
 //
-//                            Log.d("BMP_TEST", "BMP Size = ${bmpBytes.size} bytes") // ✅ debug
-//
-//                            uploadLogoAlpha(DEV_MAC_ADD, bmpBytes)
-//
-//                            snackbarHostState.showSnackbar("Logo uploaded ✅ Now print FILES test")
+//                            if (missing) {
+//                                launcher.launch(btPermissions)
+//                            } else {
+//                                // ✅ Just call your SDK printer function here
+//                                printBphNotisCajWithSdk(DEV_MAC_ADD, context,
+//                                    noSiri = lastSaved?.noKompaun ?: "-",
+//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+//                                    masa = lastSaved?.masaKompaunStr ?: "-",
+//                                    noKenderaan = noKenderaan,
+//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+//                                    jenisKenderaan = selectedJenis?.label ?: "",
+//                                    lokasi = tempatKompaun,
+//                                    pegawai = lastSaved?.namaPegawai ?: "-",
+//                                    savedId = savedId!!,
+//                                    officerId = "BPH1234")
+//                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
+//                            }
 //                        } catch (e: Exception) {
-//                            snackbarHostState.showSnackbar("Upload gagal: ${e.message}")
-//                            Log.e("UPLOAD_ERR", "Error", e)
+//                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
 //                        }
 //                    }
-//                }) {
-//                    Text("Load JATA")
-//                }
-
-//                /* 🟨 TRY PRINT */
+//                }) { Text("Print SDK Test") }
+//
 //                OutlinedButton(onClick = {
 //                    scope.launch {
 //                        try {
-//                            if (!hasBtConnectPermission()) {
-//                                permLauncher.launch(btPerms)
-//                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-//                                return@launch
+//                            val missing = btPermissions.any {
+//                                ContextCompat.checkSelfPermission(
+//                                    context,
+//                                    it
+//                                ) != PackageManager.PERMISSION_GRANTED
 //                            }
 //
-//                            val mac = DEV_MAC_ADD
-//
-//                            val tspl = testPrintFile()
-//                            printToTscOverBluetooth(mac, tspl)
+//                            if (missing) {
+//                                launcher.launch(btPermissions)
+//                            } else {
+//                                printBphNotisCajWithSdkV2(DEV_MAC_ADD, context, gambarBitmap,
+//                                    noSiri = lastSaved?.noKompaun ?: "-",
+//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+//                                    masa = lastSaved?.masaKompaunStr ?: "-",
+//                                    noKenderaan = noKenderaan,
+//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+//                                    jenisKenderaan = selectedJenis?.label ?: "",
+//                                    lokasi = tempatKompaun,
+//                                    pegawai = lastSaved?.namaPegawai ?: "-",
+//                                    savedId = savedId!!,
+//                                    officerId = "BPH1234")
+//                            }
 //
 //                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
 //                        } catch (e: Exception) {
 //                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
 //                        }
 //                    }
-//                }) {
-//                    Text("Try Print")
-//                }
-
-                /* 🟨 TRY PRINT */
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            if (!hasBtConnectPermission()) {
-                                permLauncher.launch(btPerms)
-                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-                                return@launch
-                            }
-
-                            val tspl = testPrintHello()
-                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-
-                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-                        }
-                    }
-                }) {
-                    Text("Try Print")
-                }
-
-                /* 🟨 TRY PRINT */
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            if (!hasBtConnectPermission()) {
-                                permLauncher.launch(btPerms)
-                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-                                return@launch
-                            }
-
-                            val tspl = testPrintA()
-                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-
-                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-                        }
-                    }
-                }) {
-                    Text("Try Print A")
-                }
-
-                /* 🟨 TRY PRINT */
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            if (!hasBtConnectPermission()) {
-                                permLauncher.launch(btPerms)
-                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-                                return@launch
-                            }
-
-                            val tspl = testPrintB()
-                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-
-                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-                        }
-                    }
-                }) {
-                    Text("Try Print B")
-                }
-
-                /* 🟨 TRY PRINT */
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            if (!hasBtConnectPermission()) {
-                                permLauncher.launch(btPerms)
-                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-                                return@launch
-                            }
-
-                            val tspl = testPrintC()
-                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-
-                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-                        }
-                    }
-                }) {
-                    Text("Try Print C")
-                }
-            }
+//                }) { Text("Print SDK Image") }
+//
+//                OutlinedButton(onClick = {
+//                    scope.launch {
+//                        try {
+//                            val missing = btPermissions.any {
+//                                ContextCompat.checkSelfPermission(
+//                                    context,
+//                                    it
+//                                ) != PackageManager.PERMISSION_GRANTED
+//                            }
+//
+//                            if (missing) {
+//                                launcher.launch(btPermissions)
+//                            } else {
+//                                // ✅ Just call your SDK printer function here
+//                                printBphNotisCajWithSdk_Debug(DEV_MAC_ADD, context, gambarBitmap)
+//                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
+//                            }
+//                        } catch (e: Exception) {
+//                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+//                        }
+//                    }
+//                }) { Text("Print Image") }
+//            }
         }
     }
 }

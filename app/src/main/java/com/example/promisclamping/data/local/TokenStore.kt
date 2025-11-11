@@ -19,12 +19,16 @@ class TokenStore(context: Context) {
     )
 
     var accessToken: String?
-        get() = prefs.getString("accessToken", null)
-        set(v) { prefs.edit().putString("accessToken", v).apply() }
+        get() = prefs.getString("securityToken", null)
+        set(v) {
+            prefs.edit().putString("accessToken", v).apply()
+        }
 
     var expiryEpochSec: Long
         get() = prefs.getLong("expiry", 0L)
-        set(v) { prefs.edit().putLong("expiry", v).apply() }
+        set(v) {
+            prefs.edit().putLong("expiry", v).apply()
+        }
 
     fun clear() {
         prefs.edit().clear().apply()

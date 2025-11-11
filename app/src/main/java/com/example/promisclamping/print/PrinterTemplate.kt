@@ -86,11 +86,21 @@ fun buildNotisCajReceipt(
         appendLine(row("PEGAWAI", pegawai))
 
         y += 12
-        appendLine(left(22,"Sila jelaskan caj untuk membuka apitan dan kunci di alamat dan waktu berikut:"))
+        appendLine(
+            left(
+                22,
+                "Sila jelaskan caj untuk membuka apitan dan kunci di alamat dan waktu berikut:"
+            )
+        )
         y += 6
 
 // Header above box
-        appendLine(left(24,"Kaedah Pembayaran          Tempat Pembayaran          Waktu Pembayaran"))
+        appendLine(
+            left(
+                24,
+                "Kaedah Pembayaran          Tempat Pembayaran          Waktu Pembayaran"
+            )
+        )
         y += 4
 
 // Table start
@@ -101,19 +111,19 @@ fun buildNotisCajReceipt(
         val rowH = 30
 
 // Outer border
-        appendLine("BOX $L,$payTop,${W-20},${payTop + rowH*3},2")
+        appendLine("BOX $L,$payTop,${W - 20},${payTop + rowH * 3},2")
 
-        fun trow(a:String,b:String,c:String) {
-            appendLine("""BLOCK $col1,$y,${col2-col1-8},$rowH,"1",0,1,1,0,2,"$a"""")
-            appendLine("""BLOCK ${col2+4},$y,${col3-col2-8},$rowH,"1",0,1,1,0,2,"$b"""")
-            appendLine("""BLOCK ${col3+4},$y,${(W-20)-col3-8},$rowH,"1",0,1,1,0,2,"$c"""")
+        fun trow(a: String, b: String, c: String) {
+            appendLine("""BLOCK $col1,$y,${col2 - col1 - 8},$rowH,"1",0,1,1,0,2,"$a"""")
+            appendLine("""BLOCK ${col2 + 4},$y,${col3 - col2 - 8},$rowH,"1",0,1,1,0,2,"$b"""")
+            appendLine("""BLOCK ${col3 + 4},$y,${(W - 20) - col3 - 8},$rowH,"1",0,1,1,0,2,"$c"""")
             y += rowH
-            appendLine("LINE $L,$y,${W-20},$y,2")
+            appendLine("LINE $L,$y,${W - 20},$y,2")
         }
 
 // Vertical dividers
-        appendLine("LINE $col2,$payTop,$col2,${payTop+rowH*3},2")
-        appendLine("LINE $col3,$payTop,$col3,${payTop+rowH*3},2")
+        appendLine("LINE $col2,$payTop,$col2,${payTop + rowH * 3},2")
+        appendLine("LINE $col3,$payTop,$col3,${payTop + rowH * 3},2")
 
 // Rows
         trow("Kaedah", "Kaunter Hasil BPH\nBlok F6 JPM", "Isnin–Khamis\n9.00 pg – 4.00 ptg")
@@ -127,12 +137,254 @@ fun buildNotisCajReceipt(
         y += 10
         appendLine(center(20, pegawai))
         appendLine(center(20, "Pegawai BPH"))
-        if(officerId.isNotEmpty())
+        if (officerId.isNotEmpty())
             appendLine(center(20, "ID: $officerId"))
 
         y += 10
         appendLine("QRCODE 160,$y,L,7,A,0,\"$savedId\"")
 
+        appendLine("PRINT 1,1")
+    }
+}
+
+fun buildReceiptFromScratch(
+    noSiri: String,
+    tarikh: String,
+    masa: String,
+    noKenderaan: String,
+    kadarCaj: String,
+    jenisKenderaan: String,
+    lokasi: String,
+    pegawai: String,
+    savedId: String,
+    officerId: String = ""
+): String {
+    val W = 576
+    val L = 30
+    val fullW = W - 40
+    var y = 30
+
+    fun center(h: Int, text: String) =
+        "BLOCK $L,$y,$fullW,$h,\"1\",0,1,1,1,2,\"$text\"".also { y += h + 4 }
+
+    fun left(h: Int, text: String) =
+        "BLOCK $L,$y,$fullW,$h,\"1\",0,1,1,0,2,\"$text\"".also { y += h + 4 }
+
+    fun row(k: String, v: String): String {
+        val keyW = 220
+        val out = """
+            BLOCK ${L + 8},$y,${keyW - 16},26,"1",0,1,1,0,2,"$k"
+            BLOCK ${L + keyW + 8},$y,${fullW - keyW - 16},26,"1",0,1,1,0,2,"$v"
+        """.trimIndent()
+        y += 30
+        return out
+    }
+
+    return buildString {
+        appendLine("CLS")
+        appendLine("SIZE 72 mm,150 mm")
+        appendLine("GAP 0,0")
+        appendLine("DIRECTION 0")
+        appendLine("SPEED 4")
+        appendLine("DENSITY 14")
+        appendLine("CLS")
+
+        appendLine(center(26, "JABATAN PERDANA MENTERI"))
+        appendLine(center(26, "BAHAGIAN PENGURUSAN HARTANAH"))
+        appendLine(center(36, "NOTIS CAJ"))
+        appendLine(center(22, "NO SIRI : $noSiri"))
+
+        appendLine(
+            left(
+                48,
+                "Tuan/Puan telah meletak kenderaan di kawasan tidak dibenarkan. Tayar kenderaan telah diapit dan caj dikenakan."
+            )
+        )
+        y += 8
+
+        val tableTop = y
+        appendLine("BOX $L,$tableTop,${W - 20},${tableTop + 180},2")
+        appendLine(row("TARIKH", tarikh))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("MASA", masa))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("NO. KENDERAAN", noKenderaan))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("KADAR CAJ", "$kadarCaj $jenisKenderaan"))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("LOKASI", lokasi))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("PEGAWAI", pegawai))
+        y += 10
+
+        // === BPH 3-COLUMN PAYMENT TABLE ===
+        appendLine(
+            left(
+                48,
+                "Sila jelaskan caj yang dikenakan untuk membuka apitan dan kunci tayar kenderaan tuan/puan di alamat dan waktu berikut:"
+            )
+        )
+        y += 10
+        appendLine(
+            left(
+                24,
+                "Kaedah Pembayaran         Tempat Pembayaran               Waktu Pembayaran"
+            )
+        )
+        y += 14
+
+        val payTop = y
+        val col1 = L + 10
+        val col2 = L + 230
+        val col3 = L + 430
+        val rowH = 32
+
+        appendLine("BOX $L,$payTop,${W - 20},${payTop + rowH * 3 + 6},2")
+
+        fun trow(a: String, b: String, c: String) {
+            appendLine("""BLOCK $col1,$y,${col2 - col1 - 10},$rowH,"1",0,1,1,0,2,"$a"""")
+            appendLine("""BLOCK ${col2 + 4},$y,${col3 - col2 - 10},$rowH,"1",0,1,1,0,2,"$b"""")
+            appendLine("""BLOCK ${col3 + 4},$y,${(W - 20) - col3 - 10},$rowH,"1",0,1,1,0,2,"$c"""")
+            y += rowH
+            appendLine("LINE $L,$y,${W - 20},$y,2")
+        }
+
+        appendLine("LINE $col2,$payTop,$col2,${payTop + rowH * 3},2")
+        appendLine("LINE $col3,$payTop,$col3,${payTop + rowH * 3},2")
+
+        trow("Kaedah", "Kaunter Hasil BPH", "Isnin–Khamis 9–4")
+        trow("Tunai", "Blok F6 JPM Putrajaya", "Jumaat 9–12 / 3–4")
+        trow("Dalam Talian", "promis.bph.gov.my", "24 jam")
+
+//        y += 40   // give breathing room before signature block
+//        appendLine(center(20, pegawai))
+//        appendLine(center(20, "Pegawai BPH"))
+//        if (officerId.isNotEmpty()) appendLine(center(20, "ID: $officerId"))
+//        y += 20   // give breathing room before QR code
+
+//        y += 40
+//        appendLine(center(20, "TEST SIGNATURE LINE"))
+//        appendLine(center(20, "Pegawai BPH"))
+//        appendLine(center(20, "ID: BPH001"))
+//        y += 20
+
+//        appendLine("QRCODE 160,$y,L,7,A,0,\"$savedId\"")
+        appendLine("PRINT 1,1")
+    }
+}
+
+fun buildReceiptFromScratchV2(
+    noSiri: String,
+    tarikh: String,
+    masa: String,
+    noKenderaan: String,
+    kadarCaj: String,
+    jenisKenderaan: String,
+    lokasi: String,
+    pegawai: String,
+    savedId: String,
+    officerId: String = ""
+): String {
+    val W = 576
+    val L = 30
+    val fullW = W - 40
+    var y = 30
+
+    fun center(h: Int, text: String) =
+        "BLOCK $L,$y,$fullW,$h,\"1\",0,1,1,1,2,\"$text\"".also { y += h + 4 }
+
+    fun left(h: Int, text: String) =
+        "BLOCK $L,$y,$fullW,$h,\"1\",0,1,1,0,2,\"$text\"".also { y += h + 4 }
+
+    fun row(k: String, v: String): String {
+        val keyW = 220
+        val out = """
+            BLOCK ${L + 8},$y,${keyW - 16},26,"1",0,1,1,0,2,"$k"
+            BLOCK ${L + keyW + 8},$y,${fullW - keyW - 16},26,"1",0,1,1,0,2,"$v"
+        """.trimIndent()
+        y += 30
+        return out
+    }
+
+    return buildString {
+        appendLine("CLS")
+        appendLine("SIZE 72 mm,150 mm")
+        appendLine("GAP 0,0")
+        appendLine("DIRECTION 0")
+        appendLine("SPEED 4")
+        appendLine("DENSITY 14")
+        appendLine("CLS")
+
+        appendLine(center(26, "JABATAN PERDANA MENTERI"))
+        appendLine(center(26, "BAHAGIAN PENGURUSAN HARTANAH"))
+        appendLine(center(36, "NOTIS CAJ"))
+        appendLine(center(22, "NO SIRI : $noSiri"))
+
+        appendLine(
+            left(
+                48,
+                "Tuan/Puan telah meletak kenderaan di kawasan tidak dibenarkan. Tayar kenderaan telah diapit dan caj dikenakan."
+            )
+        )
+        y += 8
+
+        val tableTop = y
+        appendLine("BOX $L,$tableTop,${W - 20},${tableTop + 180},2")
+        appendLine(row("TARIKH", tarikh))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("MASA", masa))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("NO. KENDERAAN", noKenderaan))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("KADAR CAJ", "$kadarCaj $jenisKenderaan"))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("LOKASI", lokasi))
+        appendLine("LINE $L,$y,${W - 20},$y,2")
+        appendLine(row("PEGAWAI", pegawai))
+        y += 10
+
+        // === BPH 3-COLUMN PAYMENT TABLE ===
+        appendLine(
+            left(
+                48,
+                "Sila jelaskan caj yang dikenakan untuk membuka apitan dan kunci tayar kenderaan tuan/puan di alamat dan waktu berikut:"
+            )
+        )
+        y += 10
+        appendLine(
+            left(
+                24,
+                "Kaedah Pembayaran         Tempat Pembayaran               Waktu Pembayaran"
+            )
+        )
+        y += 14
+
+        val payTop = y
+        val col1 = L + 10
+        val col2 = L + 230
+        val col3 = L + 430
+        val rowH = 32
+
+        appendLine("BOX $L,$payTop,${W - 20},${payTop + rowH * 3 + 6},2")
+
+        fun trow(a: String, b: String, c: String) {
+            appendLine("""BLOCK $col1,$y,${col2 - col1 - 10},$rowH,"1",0,1,1,0,2,"$a"""")
+            appendLine("""BLOCK ${col2 + 4},$y,${col3 - col2 - 10},$rowH,"1",0,1,1,0,2,"$b"""")
+            appendLine("""BLOCK ${col3 + 4},$y,${(W - 20) - col3 - 10},$rowH,"1",0,1,1,0,2,"$c"""")
+            y += rowH
+            appendLine("LINE $L,$y,${W - 20},$y,2")
+        }
+
+        appendLine("LINE $col2,$payTop,$col2,${payTop + rowH * 3},2")
+        appendLine("LINE $col3,$payTop,$col3,${payTop + rowH * 3},2")
+
+        trow("Kaedah", "Kaunter Hasil BPH", "Isnin–Khamis 9–4")
+        trow("Tunai", "Blok F6 JPM Putrajaya", "Jumaat 9–12 / 3–4")
+        trow("Dalam Talian", "promis.bph.gov.my", "24 jam")
+
+        appendLine("""TEXT 100,$y,"1",0,1,1,"TEST SIGNATURE LINE"""")
+
+//        appendLine("QRCODE 160,$y,L,7,A,0,\"$savedId\"")
         appendLine("PRINT 1,1")
     }
 }
