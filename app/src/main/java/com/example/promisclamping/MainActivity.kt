@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -38,6 +40,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,20 +53,16 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.example.promisclamping.Config.DEV_MAC_ADD
+import com.example.promisclamping.domain.auth.AuthState
 import com.example.promisclamping.models.ClampingRequestForm
 import com.example.promisclamping.models.ClampingResponseForm
 import com.example.promisclamping.models.VehicleType
 import com.example.promisclamping.network.ApiClient
-import com.example.promisclamping.network.ApiClient.makeAuthRepo
-import com.example.promisclamping.print.LogoManager
-import com.example.promisclamping.print.buildTsplNotisCajV2
-import com.example.promisclamping.print.printBphNotisCajWithSdk
+import com.example.promisclamping.presentation.auth.AuthViewModel
+import com.example.promisclamping.presentation.auth.LoginScreen
+import com.example.promisclamping.presentation.main.MainTabs
 import com.example.promisclamping.print.printBphNotisCajWithSdkV2
-import com.example.promisclamping.print.printBphNotisCajWithSdk_Debug
-import com.example.promisclamping.print.testPrintImageOnly
-import com.example.tscdll.TSCActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,28 +74,73 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import androidx.activity.viewModels
+import com.example.promisclamping.presentation.auth.AuthViewModelFactory
+import com.example.promisclamping.ui.theme.ProMISClampingTheme
+
+//class MainActivity : ComponentActivity() {
+//    val tsc = TSCActivity()
+//
+//    private val app by lazy { application as App }
+//
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//
+//        // optional: pre-fetch the token when the app starts
+//        val repo = makeAuthRepo(this)
+//        lifecycleScope.launch {
+//            try {
+//                repo.getBearer()
+//            } catch (_: Exception) { /* log */
+//            }
+//        }
+//
+//        // set up UI
+//        setContent {
+//            MaterialTheme {
+//                DaftarKompaunScreen()
+//            }
+//        }
+//    }
+//}
 
 class MainActivity : ComponentActivity() {
-    val tsc = TSCActivity()
 
-    private val app by lazy { application as App }
+    private val authViewModel: AuthViewModel by viewModels {
+        AuthViewModelFactory(application)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // optional: pre-fetch the token when the app starts
-        val repo = makeAuthRepo(this)
-        lifecycleScope.launch {
-            try {
-                repo.getBearer()
-            } catch (_: Exception) { /* log */
-            }
-        }
-
-        // set up UI
         setContent {
-            MaterialTheme {
-                DaftarKompaunScreen()
+            ProMISClampingTheme {
+                val authState by authViewModel.authState.collectAsState()
+
+                when (authState) {
+                    AuthState.Unknown -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+
+                    AuthState.Unauthenticated -> {
+                        LoginScreen(
+                            onLogin = { username, password ->
+                                authViewModel.login(username, password)
+                            }
+                        )
+                    }
+
+                    is AuthState.Authenticated -> {
+                        MainTabs(
+                            onLogout = { authViewModel.logout() }
+                        )
+                    }
+                }
             }
         }
     }
@@ -404,7 +448,8 @@ fun DaftarKompaunScreen() {
                                     launcher.launch(btPermissions)
                                 } else {
                                     if (gambarBitmap != null) {
-                                        printBphNotisCajWithSdkV2(DEV_MAC_ADD, context, gambarBitmap,
+                                        printBphNotisCajWithSdkV2(
+                                            DEV_MAC_ADD, context, gambarBitmap,
                                             noSiri = lastSaved?.noKompaun ?: "-",
                                             tarikh = lastSaved?.tarikhKompaunStr ?: "-",
                                             masa = lastSaved?.masaKompaunStr ?: "-",
@@ -414,9 +459,11 @@ fun DaftarKompaunScreen() {
                                             lokasi = lastSaved?.lokasi ?: "-",
                                             pegawai = lastSaved?.namaPegawai ?: "-",
                                             savedId = savedId!!,
-                                            officerId = "BPH1234")
+                                            officerId = "BPH1234"
+                                        )
                                     } else {
-                                        printBphNotisCajWithSdkV2(DEV_MAC_ADD, context,
+                                        printBphNotisCajWithSdkV2(
+                                            DEV_MAC_ADD, context,
                                             noSiri = lastSaved?.noKompaun ?: "-",
                                             tarikh = lastSaved?.tarikhKompaunStr ?: "-",
                                             masa = lastSaved?.masaKompaunStr ?: "-",
@@ -426,7 +473,8 @@ fun DaftarKompaunScreen() {
                                             lokasi = lastSaved?.lokasi ?: "-",
                                             pegawai = lastSaved?.namaPegawai ?: "-",
                                             savedId = savedId!!,
-                                            officerId = "BPH1234")
+                                            officerId = "BPH1234"
+                                        )
                                     }
                                 }
 

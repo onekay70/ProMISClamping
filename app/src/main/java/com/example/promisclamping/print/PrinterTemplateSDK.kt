@@ -2,16 +2,15 @@ package com.example.promisclamping.print
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.util.Log
 import com.example.tscdll.TSCActivity
-import kotlin.String
-import android.graphics.Bitmap
-import android.graphics.Color
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -292,7 +291,8 @@ fun printBphNotisCajWithSdkV2(
             return y
         }
 
-        row2b("Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
+        row2b(
+            "Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
                     "Jumaat\n" +
                     "9.00 pagi hingga 12.00 tengah hari\n" +
                     "3.00 petang hingga 4.00 petang"
@@ -486,10 +486,11 @@ fun printBphNotisCajWithSdkV2(
             return y
         }
 
-        row2b("Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
-                "Jumaat\n" +
-                "9.00 pagi hingga 12.00 tengah hari\n" +
-                "3.00 petang hingga 4.00 petang"
+        row2b(
+            "Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
+                    "Jumaat\n" +
+                    "9.00 pagi hingga 12.00 tengah hari\n" +
+                    "3.00 petang hingga 4.00 petang"
         )
 
         // 4️⃣ Boxed detail table

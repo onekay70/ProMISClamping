@@ -17,15 +17,6 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    // 🟢 Helper: reads token from Config or SharedPreferences
-//    private fun getAuthToken(context: Context?): String? {
-//        // for now just return Config.SECURITY_TOKEN
-//        return Config.SECURITY_TOKEN
-//        // OR, if dynamic:
-//        // val prefs = context?.getSharedPreferences("auth", Context.MODE_PRIVATE)
-//        // return prefs?.getString("token", null)
-//    }
-
     // create Retrofit instance for the authentication endpoint
     private fun authRetrofit(): Retrofit =
         Retrofit.Builder()
