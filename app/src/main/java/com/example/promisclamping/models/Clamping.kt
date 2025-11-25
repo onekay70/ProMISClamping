@@ -1,5 +1,7 @@
 package com.example.promisclamping.models
 
+import com.google.gson.annotations.SerializedName
+
 data class ClampingRequestForm(
     val noKenderaan: String,
     val jenisKenderaan: String, // or jenisId if your API expects an ID
@@ -51,3 +53,35 @@ data class ClampingResponseForm(
     val kemaskiniOleh: String?,
     val tarikhKemaskini: String?,
 )
+
+// Represents a single kompaun in a list
+data class KompaunItem(
+    val id: String?,
+    val noKompaun: String?,
+    val noKenderaan: String?,
+    val status: String?,
+    val tarikhKompaunStr: String?,
+    val masaKompaunStr: String?,
+    val idPemilik: String?,
+    val namaPemilik: String?,
+    val jenisKenderaan: String?
+)
+
+data class KompaunListResponse(
+    @SerializedName("data")
+    val data: List<KompaunItem> = emptyList(),
+
+    @SerializedName("pageNo")
+    val pageNo: Int? = null,
+
+    @SerializedName("totalItems")
+    val totalItems: Int? = null,
+
+    @SerializedName("totalPages")
+    val totalPages: Int? = null,
+
+    // You can adjust the type if you know what summaryData is
+    @SerializedName("summaryData")
+    val summaryData: Any? = null
+)
+

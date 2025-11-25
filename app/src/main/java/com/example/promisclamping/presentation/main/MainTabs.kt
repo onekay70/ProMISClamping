@@ -9,11 +9,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.promisclamping.DaftarKompaunScreen
+import com.example.promisclamping.presentation.kompaun.KompaunHistoryScreen
+import com.example.promisclamping.presentation.kompaun.KompaunListingScreen
 
 enum class MainTab(val title: String) {
     KOMPAUN("Daftar Kompaun"),
-    HISTORY("Sejarah"),
-    SETTINGS("Tetapan")
+    KOMPAUN_LISTING("Senarai Kompaun"),
+    KOMPAUN_HISTORY("Sejarah Kompaun")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,15 +48,16 @@ fun MainTabs(
             }
         }
     ) { padding ->
-        // ✅ use the padding so the warning disappears
         when (selectedTab) {
             MainTab.KOMPAUN -> DaftarKompaunScreen()
-            MainTab.HISTORY -> HistoryPlaceholder(
+
+            MainTab.KOMPAUN_LISTING -> KompaunListingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             )
-            MainTab.SETTINGS -> SettingsPlaceholder(
+
+            MainTab.KOMPAUN_HISTORY -> KompaunHistoryScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -62,6 +65,7 @@ fun MainTabs(
         }
     }
 }
+
 
 @Composable
 private fun HistoryPlaceholder(modifier: Modifier = Modifier) {
