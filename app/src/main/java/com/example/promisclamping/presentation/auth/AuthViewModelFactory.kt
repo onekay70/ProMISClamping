@@ -3,10 +3,13 @@ package com.example.promisclamping.presentation.auth
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.promisclamping.network.ApiClient
+import com.example.promisclamping.data.auth.LoginAuthRepositoryImpl
+import com.example.promisclamping.data.local.TokenStore
+import com.example.promisclamping.data.remote.api.AuthApi
+import com.example.promisclamping.data.remote.api.UserAuthApi
 import com.example.promisclamping.domain.auth.LoginUseCase
-import com.example.promisclamping.data.auth.LegacyAuthRepositoryAdapter
-import com.example.promisclamping.data.repository.AuthRepository as LegacyAuthRepository
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class AuthViewModelFactory(
     private val application: Application
@@ -17,13 +20,22 @@ class AuthViewModelFactory(
 
         if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
 
-            // 1️⃣ Use your existing ApiClient to build the "legacy" auth repo
-            val legacyRepo: LegacyAuthRepository = ApiClient.makeAuthRepo(application)
+            // Shared Retrofit for both auth endpoints
+            val retrofit = Retrofit.Builder()
+                .baseUrl("https://gerbang.bph.gov.my/api/")
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
 
-            // 2️⃣ Wrap it in our adapter, which implements domain.auth.AuthRepository
-            val authRepo = LegacyAuthRepositoryAdapter(legacyRepo)
+            val publicApi = retrofit.create(AuthApi::class.java)
+            val userApi = retrofit.create(UserAuthApi::class.java)
+            val tokenStore = TokenStore(application.applicationContext)
 
-            // 3️⃣ Inject that into the use case & ViewModel
+            val authRepo = LoginAuthRepositoryImpl(
+                publicApi = publicApi,
+                userApi = userApi,
+                tokenStore = tokenStore
+            )
+
             val loginUseCase = LoginUseCase(authRepo)
 
             return AuthViewModel(

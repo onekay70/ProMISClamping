@@ -33,4 +33,17 @@ class TokenStore(context: Context) {
     fun clear() {
         prefs.edit().clear().apply()
     }
+
+    var userName: String?
+        get() = prefs.getString("userName", null)
+        set(v) {
+            prefs.edit().putString("userName", v).apply()
+        }
+
+    var userId: String?
+        get() = prefs.getString("userId", null)
+        set(v) {
+            prefs.edit().putString("userId", v).apply()
+        }
+
 }

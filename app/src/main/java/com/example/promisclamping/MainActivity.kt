@@ -75,34 +75,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 import androidx.activity.viewModels
+import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.presentation.auth.AuthViewModelFactory
 import com.example.promisclamping.ui.theme.ProMISClampingTheme
-
-//class MainActivity : ComponentActivity() {
-//    val tsc = TSCActivity()
-//
-//    private val app by lazy { application as App }
-//
-//    override fun onCreate(savedInstanceState: Bundle?) {
-//        super.onCreate(savedInstanceState)
-//
-//        // optional: pre-fetch the token when the app starts
-//        val repo = makeAuthRepo(this)
-//        lifecycleScope.launch {
-//            try {
-//                repo.getBearer()
-//            } catch (_: Exception) { /* log */
-//            }
-//        }
-//
-//        // set up UI
-//        setContent {
-//            MaterialTheme {
-//                DaftarKompaunScreen()
-//            }
-//        }
-//    }
-//}
 
 class MainActivity : ComponentActivity() {
 
@@ -131,9 +106,12 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(
                             onLogin = { username, password ->
                                 authViewModel.login(username, password)
-                            }
+                            },
+                            isLoading = authViewModel.isLoading,
+                            errorMessage = authViewModel.loginError
                         )
                     }
+
 
                     is AuthState.Authenticated -> {
                         MainTabs(
@@ -404,7 +382,16 @@ fun DaftarKompaunScreen() {
                                     dirClamp1 = gambarPath
                                 )
 
-                                val resp = ApiClient.kompaun(ctx).createClamping(request)
+                                // 🔹 get authId from stored session
+                                val authId = TokenStore(context).userId   // might be null if not logged in
+                                if (authId.isNullOrBlank()) {
+                                    snackbarHostState.showSnackbar("Sila log masuk semula (ID pengguna tiada).")
+                                    isSaving = false
+                                    return@launch
+                                }
+
+                                // 🔹 pass authId as @Query
+                                val resp = ApiClient.kompaun(ctx).createClamping(request, authId)
 
                                 if (resp.isSuccessful) {
                                     val body = resp.body()
