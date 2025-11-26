@@ -17,7 +17,7 @@ fun ReadOnlyField(
         onValueChange = {},
         label = { Text(label) },
         readOnly = true,
-        enabled = false,
+        enabled = true,
         modifier = modifier.fillMaxWidth()
     )
 }

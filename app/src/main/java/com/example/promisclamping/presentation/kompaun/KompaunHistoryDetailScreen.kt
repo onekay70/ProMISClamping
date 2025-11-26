@@ -9,9 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.promisclamping.models.KompaunItem
+import com.example.promisclamping.ui.theme.SecondaryBlue
 
 @Composable
 fun KompaunHistoryDetailScreen(
@@ -25,25 +27,7 @@ fun KompaunHistoryDetailScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "Kembali"
-                )
-            }
-            Text(
-                text = kompaun.noKompaun ?: "Sejarah Kompaun",
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        Divider()
+        Spacer(Modifier.height(135.dp))
 
         ReadOnlyField("No Kompaun", kompaun.noKompaun ?: "-")
         ReadOnlyField("No Kenderaan", kompaun.noKenderaan ?: "-")
@@ -70,8 +54,9 @@ fun KompaunHistoryDetailScreen(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+                containerColor = SecondaryBlue,
+                contentColor = Color.White
+            ),
         ) {
             Text("Kembali")
         }

@@ -8,10 +8,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -20,6 +22,8 @@ import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.models.ClampingRequestForm
 import com.example.promisclamping.models.KompaunItem
 import com.example.promisclamping.network.ApiClient
+import com.example.promisclamping.ui.theme.PrimaryGreen
+import com.example.promisclamping.ui.theme.SecondaryBlue
 import com.example.promisclamping.util.asTextPart
 import com.example.promisclamping.util.toFilePart
 import kotlinx.coroutines.launch
@@ -34,7 +38,7 @@ fun KompaunDetailScreen(
     val tokenStore = remember { TokenStore(ctx) }
     val scope = rememberCoroutineScope()
 
-    var selectedStatus by remember { mutableStateOf(kompaun.status ?: "BARU") }
+    var selectedStatus by remember { mutableStateOf(kompaun.status ?: "SILA PILIH") }
     var catatan by remember { mutableStateOf(kompaun.catatanBatal ?: "") }
     var isSaving by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -54,6 +58,7 @@ fun KompaunDetailScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Spacer(Modifier.height(135.dp))
 
         // --- Read-only form-style fields ---
         ReadOnlyField("No Kompaun", kompaun.noKompaun ?: "-")
@@ -72,8 +77,6 @@ fun KompaunDetailScreen(
         )
 
         Divider()
-
-        Text("Tukar Status", style = MaterialTheme.typography.titleMedium)
 
         var expanded by remember { mutableStateOf(false) }
 
@@ -98,7 +101,7 @@ fun KompaunDetailScreen(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                listOf("BARU", "BATAL", "SELESAI").forEach { option ->
+                listOf("BATAL", "SELESAI").forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option) },
                         onClick = {
@@ -124,7 +127,16 @@ fun KompaunDetailScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Button(onClick = { imagePickerLauncher.launch("image/*") }) {
+            Button(
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SecondaryBlue,
+                    contentColor = Color.White
+                ),
+                onClick = { imagePickerLauncher.launch("image/*") }
+
+            ) {
+                Icon(Icons.Default.Upload, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
                 Text("Pilih Gambar")
             }
 
@@ -143,20 +155,22 @@ fun KompaunDetailScreen(
             onClick = {
                 scope.launch {
                     val authId = tokenStore.userId ?: ""
+
                     if (authId.isBlank()) {
-                        snackbarHostState.showSnackbar("Sila log masuk semula.")
+                        snackbarHostState.showSnackbar("ID pengguna tiada. Sila log masuk semula.")
                         return@launch
                     }
 
                     isSaving = true
 
                     try {
+                        // 1. Upload extra image if present
                         var dirExtra: String? = null
-
                         if (extraImageUri != null) {
                             val fp = extraImageUri!!.toFilePart(ctx.contentResolver)
                             if (fp == null) {
-                                snackbarHostState.showSnackbar("Gagal membaca fail.")
+                                snackbarHostState.showSnackbar("Tidak dapat baca fail gambar.")
+                                isSaving = false
                                 return@launch
                             }
 
@@ -166,7 +180,7 @@ fun KompaunDetailScreen(
                             )
 
                             if (!uploadResp.isSuccessful || uploadResp.body() == null) {
-                                snackbarHostState.showSnackbar("Gagal muat naik gambar.")
+                                snackbarHostState.showSnackbar("Gagal muat naik (${uploadResp.code()})")
                                 isSaving = false
                                 return@launch
                             }
@@ -175,7 +189,8 @@ fun KompaunDetailScreen(
                             dirExtra = "${body.bucketname}/${body.pathId}/${fp.fileName}"
                         }
 
-                        val request = ClampingRequestForm(
+                        // 2. Build request
+                        val requestForm = ClampingRequestForm(
                             id = kompaun.id,
                             noKenderaan = kompaun.noKenderaan,
                             jenisKenderaan = null,
@@ -188,21 +203,27 @@ fun KompaunDetailScreen(
                             dirClamp2 = dirExtra
                         )
 
+                        val api = ApiClient.kompaun(ctx)
                         val resp = when (selectedStatus) {
-                            "BATAL" -> ApiClient.kompaun(ctx)
-                                .batalKompaun(kompaun.id ?: "", request, authId)
-                            "SELESAI" -> ApiClient.kompaun(ctx)
-                                .selesaiKompaun(kompaun.id ?: "", request, authId)
-                            else -> null
+                            "BATAL" -> api.batalKompaun(kompaun.id ?: "", requestForm, authId)
+                            "SELESAI" -> api.selesaiKompaun(kompaun.id ?: "", requestForm, authId)
+                            else -> api.selesaiKompaun(kompaun.id ?: "", requestForm, authId) // or some default
                         }
 
-                        snackbarHostState.showSnackbar("Berjaya dikemaskini.")
-                        onBack()
+                        if (resp.isSuccessful) {
+                            // ✅ turn off loading *before* snackbar so UI unlocks immediately
+                            isSaving = false
+                            snackbarHostState.showSnackbar("Berjaya dikemaskini ($selectedStatus).")
+                            onBack()
+                        } else {
+                            isSaving = false
+                            val errText = resp.errorBody()?.string().orEmpty()
+                            snackbarHostState.showSnackbar("Gagal (${resp.code()}): ${errText.ifBlank { "Ralat pelayan" }}")
+                        }
 
                     } catch (t: Throwable) {
-                        snackbarHostState.showSnackbar("Ralat: ${t.message}")
-                    } finally {
                         isSaving = false
+                        snackbarHostState.showSnackbar("Ralat: ${t.message ?: t.javaClass.simpleName}")
                     }
                 }
             },
@@ -217,8 +238,9 @@ fun KompaunDetailScreen(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+                containerColor = SecondaryBlue,
+                contentColor = Color.White
+            ),
         ) {
             Text("Kembali")
         }

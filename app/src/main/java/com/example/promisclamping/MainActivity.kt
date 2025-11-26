@@ -59,10 +59,24 @@ import com.example.promisclamping.presentation.main.MainTabs
 import com.example.promisclamping.print.printBphNotisCajWithSdkV2
 import kotlinx.coroutines.launch
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.presentation.auth.AuthViewModelFactory
+import com.example.promisclamping.ui.theme.PrimaryGreen
 import com.example.promisclamping.ui.theme.ProMISClampingTheme
+import com.example.promisclamping.ui.theme.SecondaryBlue
 import com.example.promisclamping.util.asTextPart
 import com.example.promisclamping.util.toFilePart
 import com.example.promisclamping.util.FilePart
@@ -79,7 +93,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ProMISClampingTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val authState by authViewModel.authState.collectAsState()
@@ -190,7 +205,12 @@ fun DaftarKompaunScreen() {
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Maklumat Kompaun", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(40.dp))
+
+            Text(
+                text = "Maklumat Kompaun",
+                style = MaterialTheme.typography.titleMedium
+            )
 
             // --- No Kenderaan ---
             OutlinedTextField(
@@ -280,14 +300,22 @@ fun DaftarKompaunScreen() {
                 }
             }
 
+            Divider()
+
             // --- Gambar Upload ---
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Gambar Apitan")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { if (!isSaving) pickImage.launch("image/*") },
-                        enabled = !isSaving
+                        enabled = !isSaving,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SecondaryBlue,
+                            contentColor = Color.White
+                        )
                     ) {
+                        Icon(Icons.Default.Upload, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
                         Text("Muat Naik")
                     }
                     if (gambarUri != null) {
@@ -313,23 +341,30 @@ fun DaftarKompaunScreen() {
             }
 
             // --- Buttons ---
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 /* 🟩 SIMPAN */
                 Button(
                     enabled = !isSaving,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryGreen,
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         scope.launch {
                             // basic validation
                             when {
                                 noKenderaan.isBlank() -> {
-                                    snackbarHostState.showSnackbar("Isi No Kenderaan."); return@launch
+                                    snackbarHostState.showSnackbar("Isi No Kenderaan.")
+                                    return@launch
                                 }
 
                                 gambarSizeBytes != null && gambarSizeBytes!! > 5L * 1024 * 1024 -> {
-                                    snackbarHostState.showSnackbar("Gambar melebihi 5 MB."); return@launch
+                                    snackbarHostState.showSnackbar("Gambar melebihi 5 MB.")
+                                    return@launch
                                 }
                             }
 
@@ -344,7 +379,7 @@ fun DaftarKompaunScreen() {
                                         return@launch
                                     }
 
-                                    val bucket = Config.BUCKET_NAME // or pick from UI
+                                    val bucket = Config.BUCKET_NAME
                                     val resp = ApiClient.upload(ctx).uploadImage(
                                         file = fp.part,
                                         bucketName = bucket.asTextPart()
@@ -357,16 +392,12 @@ fun DaftarKompaunScreen() {
                                     }
 
                                     val body = resp.body()!!
-                                    // Build your required string: bucketName/pathId/fileName
-                                    val fileName = /* sanitizeForKey( */ fp.fileName /* ) */
+                                    val fileName = fp.fileName
                                     gambarPath = "${body.bucketname}/${body.pathId}/$fileName"
                                 }
 
-                                val jenisId = selectedJenis?.id       // The numeric ID
-                                selectedJenis?.label // The display name
+                                val jenisId = selectedJenis?.id
 
-                                // Step 2: save kompaun
-                                // Build request from your UI state (adjust names to your API)
                                 val request = ClampingRequestForm(
                                     id = null,
                                     noKenderaan = noKenderaan,
@@ -380,22 +411,20 @@ fun DaftarKompaunScreen() {
                                     dirClamp2 = null
                                 )
 
-                                // 🔹 get authId from stored session
-                                val authId = TokenStore(context).userId   // might be null if not logged in
+                                val authId = TokenStore(context).userId
                                 if (authId.isNullOrBlank()) {
                                     snackbarHostState.showSnackbar("Sila log masuk semula (ID pengguna tiada).")
                                     isSaving = false
                                     return@launch
                                 }
 
-                                // 🔹 pass authId as @Query
                                 val resp = ApiClient.kompaun(ctx).createClamping(request, authId)
 
                                 if (resp.isSuccessful) {
                                     val body = resp.body()
                                     if (body != null) {
                                         savedId = body.id
-                                        lastSaved = body            // <-- keep the whole response
+                                        lastSaved = body
                                         snackbarHostState.showSnackbar("Disimpan! No Kompaun: ${body.noKompaun ?: "-"}")
                                     } else {
                                         snackbarHostState.showSnackbar("Gagal: respons kosong.")
@@ -405,278 +434,92 @@ fun DaftarKompaunScreen() {
                                     snackbarHostState.showSnackbar("Gagal (${resp.code()}): ${errText.ifBlank { "Ralat pelayan" }}")
                                 }
                             } catch (t: Throwable) {
-                                // catches UnknownHostException, ConnectException, SSL/cleartext issues, NPE, etc.
                                 snackbarHostState.showSnackbar("Ralat: ${t.message ?: t.javaClass.simpleName}")
                             } finally {
                                 isSaving = false
                             }
                         }
                     }
-                ) { Text(if (isSaving) "Menyimpan..." else "Simpan") }
+                ) {
+                    Text(if (isSaving) "Menyimpan..." else "Simpan")
+                }
 
                 /* 🟦 CETAK (only visible after save) */
                 if (savedId != null) {
-                    val context = LocalContext.current
-                    val scope = rememberCoroutineScope()
-
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            try {
-                                val missing = btPermissions.any {
-                                    ContextCompat.checkSelfPermission(
-                                        context,
-                                        it
-                                    ) != PackageManager.PERMISSION_GRANTED
-                                }
-
-                                if (missing) {
-                                    launcher.launch(btPermissions)
-                                } else {
-                                    if (gambarBitmap != null) {
-                                        printBphNotisCajWithSdkV2(
-                                            DEV_MAC_ADD, context, gambarBitmap,
-                                            noSiri = lastSaved?.noKompaun ?: "-",
-                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-                                            masa = lastSaved?.masaKompaunStr ?: "-",
-                                            noKenderaan = noKenderaan,
-                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-                                            jenisKenderaan = selectedJenis?.label ?: "",
-                                            lokasi = lastSaved?.lokasi ?: "-",
-                                            pegawai = lastSaved?.namaPegawai ?: "-",
-                                            savedId = savedId!!,
-                                            officerId = "BPH1234"
-                                        )
-                                    } else {
-                                        printBphNotisCajWithSdkV2(
-                                            DEV_MAC_ADD, context,
-                                            noSiri = lastSaved?.noKompaun ?: "-",
-                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-                                            masa = lastSaved?.masaKompaunStr ?: "-",
-                                            noKenderaan = noKenderaan,
-                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-                                            jenisKenderaan = selectedJenis?.label ?: "",
-                                            lokasi = lastSaved?.lokasi ?: "-",
-                                            pegawai = lastSaved?.namaPegawai ?: "-",
-                                            savedId = savedId!!,
-                                            officerId = "BPH1234"
-                                        )
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val missing = btPermissions.any {
+                                        ContextCompat.checkSelfPermission(
+                                            context,
+                                            it
+                                        ) != PackageManager.PERMISSION_GRANTED
                                     }
-                                }
 
-                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
-                            } catch (e: Exception) {
-                                snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+                                    if (missing) {
+                                        launcher.launch(btPermissions)
+                                    } else {
+                                        if (gambarBitmap != null) {
+                                            printBphNotisCajWithSdkV2(
+                                                DEV_MAC_ADD, context, gambarBitmap,
+                                                noSiri = lastSaved?.noKompaun ?: "-",
+                                                tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                                masa = lastSaved?.masaKompaunStr ?: "-",
+                                                noKenderaan = noKenderaan,
+                                                kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                                jenisKenderaan = selectedJenis?.label ?: "",
+                                                lokasi = lastSaved?.lokasi ?: "-",
+                                                pegawai = lastSaved?.namaPegawai ?: "-",
+                                                savedId = savedId!!,
+                                                officerId = "BPH1234"
+                                            )
+                                        } else {
+                                            printBphNotisCajWithSdkV2(
+                                                DEV_MAC_ADD, context,
+                                                noSiri = lastSaved?.noKompaun ?: "-",
+                                                tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                                masa = lastSaved?.masaKompaunStr ?: "-",
+                                                noKenderaan = noKenderaan,
+                                                kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                                jenisKenderaan = selectedJenis?.label ?: "",
+                                                lokasi = lastSaved?.lokasi ?: "-",
+                                                pegawai = lastSaved?.namaPegawai ?: "-",
+                                                savedId = savedId!!,
+                                                officerId = "BPH1234"
+                                            )
+                                        }
+                                    }
+
+                                    snackbarHostState.showSnackbar("Cetak dihantar ✅")
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+                                }
                             }
-//                            try {
-//                                if (!hasBtConnectPermission()) {
-//                                    permLauncher.launch(btPerms)
-//                                    snackbarHostState.showSnackbar("Sila benarkan kebenaran Bluetooth.")
-//                                    return@launch
-//                                }
-//
-//                                val bmpBytes =
-//                                    context.assets.open("jata_malaysia_384px.bmp").readBytes()
-//                                LogoManager.uploadLogoIfNeeded(DEV_MAC_ADD, bmpBytes)
-//
-//                                val tspl = buildTsplNotisCajV2(
-//                                    noKompaun = lastSaved?.noKompaun ?: "-",
-//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-//                                    masa = lastSaved?.masaKompaunStr ?: "-",
-//                                    noKenderaan = noKenderaan,
-//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-//                                    jenisKenderaan = selectedJenis?.label ?: "",
-//                                    lokasi = tempatKompaun,
-//                                    pegawai = lastSaved?.namaPegawai ?: "-",
-//                                    savedId = savedId!!
-////                                    officerId = "BPH1234"
-//                                )
-//
-//                                printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-//                                snackbarHostState.showSnackbar("Cetak dihantar.")
-//                            } catch (se: SecurityException) {
-//                                snackbarHostState.showSnackbar("Kebenaran Bluetooth ditolak.")
-//                            } catch (t: Throwable) {
-//                                snackbarHostState.showSnackbar("Gagal cetak: ${t.message}")
-//                            }
-                        }
-                    }) { Text("Cetak Kompaun") }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cetak Kompaun")
+                    }
                 }
 
                 /* 🟨 DAFTAR BARU */
-                OutlinedButton(onClick = {
-                    noKenderaan = ""
-                    selectedJenis = VehicleType("03", "KERETA")
-                    blok = blokList.first()
-                    tempatKompaun = ""
-                    gambarUri = null
-                    gambarSizeBytes = null
-                    savedId = null
-                }) { Text("Daftar Baru") }
+                OutlinedButton(
+                    onClick = {
+                        noKenderaan = ""
+                        selectedJenis = VehicleType("03", "KERETA")
+                        blok = blokList.first()
+                        tempatKompaun = ""
+                        gambarUri = null
+                        gambarSizeBytes = null
+                        savedId = null
+                        lastSaved = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Daftar Baru")
+                }
             }
-
-            // --- Buttons ---
-//            Row(
-//                horizontalArrangement = Arrangement.spacedBy(12.dp),
-//                verticalAlignment = Alignment.CenterVertically
-//            ) {
-//                /* 🟨 TRY PRINT */
-////                OutlinedButton(onClick = {
-////                    scope.launch {
-////                        try {
-////                            if (!hasBtConnectPermission()) {
-////                                permLauncher.launch(btPerms)
-////                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-////                                return@launch
-////                            }
-////
-////                            val tspl = buildReceiptFromScratch(
-////                                noSiri = "BPH/2025/11/0057",
-////                                tarikh = "11/11/2025",
-////                                masa = "02:10 PM",
-////                                noKenderaan = "BNS1928",
-////                                kadarCaj = "RM 50.00",
-////                                jenisKenderaan = "KERETA",
-////                                lokasi = "PARKING BLOK F",
-////                                pegawai = "AZMIN BIN BUAS",
-////                                savedId = "f2b47a8ff7c94af7a6bcd7cb28f910c2",
-////                                officerId = "BPH1234"
-////                            )
-////
-////                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-////                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-////                        } catch (e: Exception) {
-////                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-////                        }
-////                    }
-////                }) {
-////                    Text("Try Print V1")
-////                }
-//
-//                /* 🟨 TRY PRINT */
-////                OutlinedButton(onClick = {
-////                    scope.launch {
-////                        try {
-////                            if (!hasBtConnectPermission()) {
-////                                permLauncher.launch(btPerms)
-////                                snackbarHostState.showSnackbar("Sila benarkan Bluetooth.")
-////                                return@launch
-////                            }
-////
-////                            val tspl = buildReceiptFromScratchV2(
-////                                noSiri = "BPH/2025/11/0057",
-////                                tarikh = "11/11/2025",
-////                                masa = "02:10 PM",
-////                                noKenderaan = "BNS1928",
-////                                kadarCaj = "RM 50.00",
-////                                jenisKenderaan = "KERETA",
-////                                lokasi = "PARKING BLOK F",
-////                                pegawai = "AZMIN BIN BUAS",
-////                                savedId = "f2b47a8ff7c94af7a6bcd7cb28f910c2",
-////                                officerId = "BPH1234"
-////                            )
-////
-////                            printToTscOverBluetooth(DEV_MAC_ADD, tspl)
-////
-////                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-////                        } catch (e: Exception) {
-////                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-////                        }
-////                    }
-////                }) {
-////                    Text("Try Print V2")
-////                }
-//
-//                val context = LocalContext.current
-//
-//                OutlinedButton(onClick = {
-//                    scope.launch {
-//                        try {
-//                            val missing = btPermissions.any {
-//                                ContextCompat.checkSelfPermission(
-//                                    context,
-//                                    it
-//                                ) != PackageManager.PERMISSION_GRANTED
-//                            }
-//
-//                            if (missing) {
-//                                launcher.launch(btPermissions)
-//                            } else {
-//                                // ✅ Just call your SDK printer function here
-//                                printBphNotisCajWithSdk(DEV_MAC_ADD, context,
-//                                    noSiri = lastSaved?.noKompaun ?: "-",
-//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-//                                    masa = lastSaved?.masaKompaunStr ?: "-",
-//                                    noKenderaan = noKenderaan,
-//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-//                                    jenisKenderaan = selectedJenis?.label ?: "",
-//                                    lokasi = tempatKompaun,
-//                                    pegawai = lastSaved?.namaPegawai ?: "-",
-//                                    savedId = savedId!!,
-//                                    officerId = "BPH1234")
-//                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
-//                            }
-//                        } catch (e: Exception) {
-//                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-//                        }
-//                    }
-//                }) { Text("Print SDK Test") }
-//
-//                OutlinedButton(onClick = {
-//                    scope.launch {
-//                        try {
-//                            val missing = btPermissions.any {
-//                                ContextCompat.checkSelfPermission(
-//                                    context,
-//                                    it
-//                                ) != PackageManager.PERMISSION_GRANTED
-//                            }
-//
-//                            if (missing) {
-//                                launcher.launch(btPermissions)
-//                            } else {
-//                                printBphNotisCajWithSdkV2(DEV_MAC_ADD, context, gambarBitmap,
-//                                    noSiri = lastSaved?.noKompaun ?: "-",
-//                                    tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-//                                    masa = lastSaved?.masaKompaunStr ?: "-",
-//                                    noKenderaan = noKenderaan,
-//                                    kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-//                                    jenisKenderaan = selectedJenis?.label ?: "",
-//                                    lokasi = tempatKompaun,
-//                                    pegawai = lastSaved?.namaPegawai ?: "-",
-//                                    savedId = savedId!!,
-//                                    officerId = "BPH1234")
-//                            }
-//
-//                            snackbarHostState.showSnackbar("Cetak dihantar ✅")
-//                        } catch (e: Exception) {
-//                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-//                        }
-//                    }
-//                }) { Text("Print SDK Image") }
-//
-//                OutlinedButton(onClick = {
-//                    scope.launch {
-//                        try {
-//                            val missing = btPermissions.any {
-//                                ContextCompat.checkSelfPermission(
-//                                    context,
-//                                    it
-//                                ) != PackageManager.PERMISSION_GRANTED
-//                            }
-//
-//                            if (missing) {
-//                                launcher.launch(btPermissions)
-//                            } else {
-//                                // ✅ Just call your SDK printer function here
-//                                printBphNotisCajWithSdk_Debug(DEV_MAC_ADD, context, gambarBitmap)
-//                                snackbarHostState.showSnackbar("Cetak dihantar ✅")
-//                            }
-//                        } catch (e: Exception) {
-//                            snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
-//                        }
-//                    }
-//                }) { Text("Print Image") }
-//            }
         }
     }
 }
