@@ -1,17 +1,11 @@
 package com.example.promisclamping
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothSocket
-import android.content.ContentResolver
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
-import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -63,21 +57,15 @@ import com.example.promisclamping.presentation.auth.AuthViewModel
 import com.example.promisclamping.presentation.auth.LoginScreen
 import com.example.promisclamping.presentation.main.MainTabs
 import com.example.promisclamping.print.printBphNotisCajWithSdkV2
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
 import androidx.activity.viewModels
+import androidx.compose.material3.Surface
 import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.presentation.auth.AuthViewModelFactory
 import com.example.promisclamping.ui.theme.ProMISClampingTheme
+import com.example.promisclamping.util.asTextPart
+import com.example.promisclamping.util.toFilePart
+import com.example.promisclamping.util.FilePart
 
 class MainActivity : ComponentActivity() {
 
@@ -90,33 +78,38 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ProMISClampingTheme {
-                val authState by authViewModel.authState.collectAsState()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val authState by authViewModel.authState.collectAsState()
 
-                when (authState) {
-                    AuthState.Unknown -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
+                    when (authState) {
+                        AuthState.Unknown -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
                         }
-                    }
 
-                    AuthState.Unauthenticated -> {
-                        LoginScreen(
-                            onLogin = { username, password ->
-                                authViewModel.login(username, password)
-                            },
-                            isLoading = authViewModel.isLoading,
-                            errorMessage = authViewModel.loginError
-                        )
-                    }
+                        AuthState.Unauthenticated -> {
+                            LoginScreen(
+                                onLogin = { username, password ->
+                                    authViewModel.login(username, password)
+                                },
+                                isLoading = authViewModel.isLoading,
+                                errorMessage = authViewModel.loginError
+                            )
+                        }
 
 
-                    is AuthState.Authenticated -> {
-                        MainTabs(
-                            onLogout = { authViewModel.logout() }
-                        )
+                        is AuthState.Authenticated -> {
+                            MainTabs(
+                                onLogout = { authViewModel.logout() }
+                            )
+                        }
                     }
                 }
             }
@@ -375,11 +368,16 @@ fun DaftarKompaunScreen() {
                                 // Step 2: save kompaun
                                 // Build request from your UI state (adjust names to your API)
                                 val request = ClampingRequestForm(
+                                    id = null,
                                     noKenderaan = noKenderaan,
                                     jenisKenderaan = jenisId.toString(),
                                     blok = blok,
                                     tempat = tempatKompaun,
-                                    dirClamp1 = gambarPath
+                                    lokasi = null,
+                                    status = null,
+                                    catatanBatal = null,
+                                    dirClamp1 = gambarPath,
+                                    dirClamp2 = null
                                 )
 
                                 // 🔹 get authId from stored session
@@ -733,102 +731,5 @@ fun JenisKenderaanDropdown(
                 )
             }
         }
-    }
-}
-
-/* ---------- Helpers ---------- */
-
-fun String.asTextPart(): RequestBody =
-    this.toRequestBody("text/plain".toMediaTypeOrNull())
-
-data class FilePart(val part: MultipartBody.Part, val fileName: String)
-
-fun Uri.toFilePart(resolver: ContentResolver, partName: String = "file"): FilePart? =
-    runCatching {
-        val name = resolver.query(this, null, null, null, null)?.use { c ->
-            val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
-        } ?: "upload"
-
-        val mime = resolver.getType(this)
-            ?: MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(name.substringAfterLast('.', ""))
-            ?: "application/octet-stream"
-
-        resolver.openInputStream(this)?.use { input ->
-            val tmp = File.createTempFile("upload_", "_$name")
-            FileOutputStream(tmp).use { out -> input.copyTo(out) }
-            val body = tmp.asRequestBody(mime.toMediaTypeOrNull())
-            FilePart(
-                part = MultipartBody.Part.createFormData(partName, name, body),
-                fileName = name
-            )
-        }
-    }.getOrNull()
-
-private fun ContentResolver.queryDisplayName(uri: Uri): String? =
-    query(uri, null, null, null, null)?.use { c ->
-        val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-        if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
-    }
-
-// ====== constants ======
-private val SPP_UUID: UUID =
-    UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-
-// ====== Bluetooth socket helper with fallbacks ======
-private fun createTscSocket(device: BluetoothDevice): BluetoothSocket {
-    // 1) normal SPP
-    runCatching { return device.createRfcommSocketToServiceRecord(SPP_UUID) }
-    // 2) insecure SPP (some printers prefer this)
-    runCatching {
-        val m = device.javaClass.getMethod(
-            "createInsecureRfcommSocketToServiceRecord", UUID::class.java
-        )
-        return m.invoke(device, SPP_UUID) as BluetoothSocket
-    }
-    // 3) legacy channel 1
-    val meth = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-    return meth.invoke(device, 1) as BluetoothSocket
-}
-
-// ====== Printer call (send raw TSPL) ======
-suspend fun printToTscOverBluetooth(
-    macAddress: String,
-    tspl: String
-) = withContext(Dispatchers.IO) {
-    val adapter = BluetoothAdapter.getDefaultAdapter()
-        ?: throw IllegalStateException("Bluetooth not available")
-
-    val device = adapter.getRemoteDevice(macAddress) // needs BLUETOOTH_CONNECT on API 31+
-    val socket = createTscSocket(device)
-
-    socket.use { s ->
-        s.connect()
-        s.outputStream.use { out ->
-            out.write(tspl.toByteArray(Charsets.US_ASCII)) // ASCII for reliability
-            out.flush()
-            Thread.sleep(120) // small settle time
-        }
-    }
-}
-
-suspend fun uploadJataToPrinter(mac: String, bitmapBytes: ByteArray) {
-    val adapter = BluetoothAdapter.getDefaultAdapter()
-    val device = adapter.getRemoteDevice(mac)
-    val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-
-    socket.use { s ->
-        s.connect()
-        val out = s.outputStream
-
-        // enter file write mode
-        out.write("DOWNLOAD F,JATA.BMP,${bitmapBytes.size}\n".toByteArray())
-        out.write(bitmapBytes)
-        out.flush()
-        Thread.sleep(200)
-
-        out.write("PRINT 1,1\n".toByteArray())
-        out.flush()
     }
 }

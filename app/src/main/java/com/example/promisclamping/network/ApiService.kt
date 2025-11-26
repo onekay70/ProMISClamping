@@ -7,6 +7,8 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
@@ -24,5 +26,18 @@ interface ApiService {
         @Query("authId") authId: String
     ): Response<KompaunListResponse>
 
+    @PUT("clamping/{id}/batal-kompaun")
+    suspend fun batalKompaun(
+        @Path("id") id: String,
+        @Body body: ClampingRequestForm,
+        @Query("authId") authId: String
+    ): Response<ClampingResponseForm>
+
+    @PUT("clamping/{id}/selesai")
+    suspend fun selesaiKompaun(
+        @Path("id") id: String,
+        @Body body: ClampingRequestForm,
+        @Query("authId") authId: String
+    ): Response<ClampingResponseForm>
 
 }

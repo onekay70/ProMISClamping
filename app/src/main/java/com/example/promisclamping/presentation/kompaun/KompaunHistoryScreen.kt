@@ -23,6 +23,9 @@ fun KompaunHistoryScreen(modifier: Modifier = Modifier) {
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<KompaunItem>>(emptyList()) }
 
+    // 🔹 NEW: track the selected item
+    var selectedKompaun by remember { mutableStateOf<KompaunItem?>(null) }
+
     LaunchedEffect(Unit) {
         val authId = tokenStore.userId ?: ""
 
@@ -47,11 +50,22 @@ fun KompaunHistoryScreen(modifier: Modifier = Modifier) {
         isLoading = false
     }
 
-    KompaunListContent(
-        title = "Sejarah Kompaun",
-        isLoading = isLoading,
-        error = error,
-        items = items,
-        modifier = modifier
-    )
+    // 🔹 If an item is selected, show detail screen instead of list
+    if (selectedKompaun != null) {
+        KompaunHistoryDetailScreen(
+            kompaun = selectedKompaun!!,
+            onBack = { selectedKompaun = null }
+        )
+    } else {
+        KompaunListContent(
+            title = "Sejarah Kompaun",
+            isLoading = isLoading,
+            error = error,
+            items = items,
+            modifier = modifier,
+            onItemClick = { item ->
+                selectedKompaun = item
+            }
+        )
+    }
 }

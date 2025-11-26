@@ -1,5 +1,6 @@
 package com.example.promisclamping.presentation.kompaun
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.promisclamping.models.KompaunItem
 
@@ -22,7 +24,8 @@ fun KompaunListContent(
     isLoading: Boolean,
     error: String?,
     items: List<KompaunItem>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onItemClick: (KompaunItem) -> Unit
 ) {
     Column(
         modifier = modifier.padding(16.dp)
@@ -55,39 +58,46 @@ fun KompaunListContent(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(items) { item ->
                         Card(
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onItemClick(item) }
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = item.noKompaun ?: "-",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Text(
-                                    text = "No Kenderaan: ${item.noKenderaan ?: "-"}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "No KP: ${item.idPemilik ?: "-"}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Nama: ${item.namaPemilik ?: "-"}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Tarikh: ${item.tarikhKompaunStr ?: "-"} ${item.masaKompaunStr ?: ""}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = "Status: ${item.status ?: "-"}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-//                                item.tarikhMasa?.let {
-//                                    Text(
-//                                        text = "Tarikh: $it",
-//                                        style = MaterialTheme.typography.bodySmall
-//                                    )
-//                                }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // LEFT COLUMN
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = item.noKompaun ?: "-",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("No Kenderaan: ${item.noKenderaan ?: "-"}")
+                                    Text("No KP: ${item.idPemilik ?: "-"}")
+                                    Text("Nama: ${item.namaPemilik ?: "-"}")
+                                }
+
+                                // RIGHT COLUMN
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = "Tarikh: ${item.tarikhKompaunStr ?: "-"} ${item.masaKompaunStr ?: ""}".trim(),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("Status: ${item.status ?: "-"}")
+                                }
                             }
                         }
                     }

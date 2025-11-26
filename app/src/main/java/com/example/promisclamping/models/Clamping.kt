@@ -3,11 +3,16 @@ package com.example.promisclamping.models
 import com.google.gson.annotations.SerializedName
 
 data class ClampingRequestForm(
-    val noKenderaan: String,
-    val jenisKenderaan: String, // or jenisId if your API expects an ID
+    val id: String?,
+    val noKenderaan: String?,
+    val jenisKenderaan: String?, // or jenisId if your API expects an ID
     val blok: String?,
     val tempat: String?,
-    val dirClamp1: String?
+    val lokasi: String?,
+    val status: String?,
+    val catatanBatal: String?,
+    val dirClamp1: String?,
+    val dirClamp2: String?,
 )
 
 // ClampingResponseForm → exactly what your server returns
@@ -64,7 +69,12 @@ data class KompaunItem(
     val masaKompaunStr: String?,
     val idPemilik: String?,
     val namaPemilik: String?,
-    val jenisKenderaan: String?
+    val jenisKenderaan: String?,
+    val tempat: String?,
+    val lokasi: String?,
+    val kadarKompaun: String?,
+    val catatanBatal: String?,
+    val dirClamp2: String?,
 )
 
 data class KompaunListResponse(
