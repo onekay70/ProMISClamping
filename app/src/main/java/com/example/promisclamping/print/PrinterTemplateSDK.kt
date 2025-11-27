@@ -189,8 +189,7 @@ fun printBphNotisCajWithSdkV2(
     jenisKenderaan: String,
     lokasi: String,
     pegawai: String,
-    savedId: String,
-    officerId: String = ""
+    savedId: String
 ) {
     val tsc = TSCActivity()
 
@@ -383,9 +382,7 @@ fun printBphNotisCajWithSdkV2(
     kadarCaj: String,
     jenisKenderaan: String,
     lokasi: String,
-    pegawai: String,
-    savedId: String,
-    officerId: String = ""
+    pegawai: String
 ) {
     val tsc = TSCActivity()
 

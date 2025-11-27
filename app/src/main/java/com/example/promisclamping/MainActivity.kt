@@ -1,6 +1,9 @@
 package com.example.promisclamping
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -80,6 +83,9 @@ import com.example.promisclamping.ui.theme.SecondaryBlue
 import com.example.promisclamping.util.asTextPart
 import com.example.promisclamping.util.toFilePart
 import com.example.promisclamping.util.FilePart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
@@ -471,8 +477,7 @@ fun DaftarKompaunScreen() {
                                                 jenisKenderaan = selectedJenis?.label ?: "",
                                                 lokasi = lastSaved?.lokasi ?: "-",
                                                 pegawai = lastSaved?.namaPegawai ?: "-",
-                                                savedId = savedId!!,
-                                                officerId = "BPH1234"
+                                                savedId = savedId!!
                                             )
                                         } else {
                                             printBphNotisCajWithSdkV2(
@@ -484,9 +489,7 @@ fun DaftarKompaunScreen() {
                                                 kadarCaj = "RM ${lastSaved?.kadarKompaun}",
                                                 jenisKenderaan = selectedJenis?.label ?: "",
                                                 lokasi = lastSaved?.lokasi ?: "-",
-                                                pegawai = lastSaved?.namaPegawai ?: "-",
-                                                savedId = savedId!!,
-                                                officerId = "BPH1234"
+                                                pegawai = lastSaved?.namaPegawai ?: "-"
                                             )
                                         }
                                     }
@@ -574,5 +577,66 @@ fun JenisKenderaanDropdown(
                 )
             }
         }
+    }
+}
+
+// ====== constants ======
+private val SPP_UUID: UUID =
+    UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+
+// ====== Bluetooth socket helper with fallbacks ======
+private fun createTscSocket(device: BluetoothDevice): BluetoothSocket {
+    // 1) normal SPP
+    runCatching { return device.createRfcommSocketToServiceRecord(SPP_UUID) }
+    // 2) insecure SPP (some printers prefer this)
+    runCatching {
+        val m = device.javaClass.getMethod(
+            "createInsecureRfcommSocketToServiceRecord", UUID::class.java
+        )
+        return m.invoke(device, SPP_UUID) as BluetoothSocket
+    }
+    // 3) legacy channel 1
+    val meth = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+    return meth.invoke(device, 1) as BluetoothSocket
+}
+
+// ====== Printer call (send raw TSPL) ======
+suspend fun printToTscOverBluetooth(
+    macAddress: String,
+    tspl: String
+) = withContext(Dispatchers.IO) {
+    val adapter = BluetoothAdapter.getDefaultAdapter()
+        ?: throw IllegalStateException("Bluetooth not available")
+
+    val device = adapter.getRemoteDevice(macAddress) // needs BLUETOOTH_CONNECT on API 31+
+    val socket = createTscSocket(device)
+
+    socket.use { s ->
+        s.connect()
+        s.outputStream.use { out ->
+            out.write(tspl.toByteArray(Charsets.US_ASCII)) // ASCII for reliability
+            out.flush()
+            Thread.sleep(120) // small settle time
+        }
+    }
+}
+
+suspend fun uploadJataToPrinter(mac: String, bitmapBytes: ByteArray) {
+    val adapter = BluetoothAdapter.getDefaultAdapter()
+    val device = adapter.getRemoteDevice(mac)
+    val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
+
+    socket.use { s ->
+        s.connect()
+        val out = s.outputStream
+
+        // enter file write mode
+        out.write("DOWNLOAD F,JATA.BMP,${bitmapBytes.size}\n".toByteArray())
+        out.write(bitmapBytes)
+        out.flush()
+        Thread.sleep(200)
+
+        out.write("PRINT 1,1\n".toByteArray())
+        out.flush()
     }
 }
