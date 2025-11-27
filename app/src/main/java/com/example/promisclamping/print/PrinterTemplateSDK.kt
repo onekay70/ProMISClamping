@@ -1,6 +1,7 @@
 package com.example.promisclamping.print
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,175 +12,15 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.util.Log
 import com.example.tscdll.TSCActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 @SuppressLint("MissingPermission")
-fun printWithSdk(macAddress: String) {
-    val tsc = TSCActivity()
-
-    try {
-        // 1️⃣ Open Bluetooth Port
-        tsc.openport(macAddress)
-
-        tsc.downloadbmp("jata_malaysia_384px.bmp")
-
-        tsc.sendcommand("PUTBMP 100,20,\"jata_malaysia_384px.bmp\"\n")
-
-        // 2️⃣ Configure printer
-        tsc.setup(72, 120, 4, 8, 0, 0, 0) // width mm, height mm, speed, density, gap, etc
-        tsc.clearbuffer()
-
-        // 3️⃣ Example: Text printing
-        tsc.sendcommand("TEXT 120,50,\"3\",0,1,1,\"JABATAN PERDANA MENTERI\"\n")
-        tsc.sendcommand("TEXT 100,100,\"3\",0,1,1,\"NOTIS CAJ\"\n")
-        tsc.sendcommand("TEXT 100,150,\"1\",0,1,1,\"NO SIRI: BPH/2025/11/0057\"\n")
-
-        // 4️⃣ Example: Box drawing
-        tsc.sendcommand("BOX 40,200,560,450,2\n")
-
-        // 5️⃣ Example: Row text
-        tsc.sendcommand("TEXT 60,220,\"1\",0,1,1,\"TARIKH: 11/11/2025\"\n")
-        tsc.sendcommand("TEXT 60,250,\"1\",0,1,1,\"MASA: 02:10 PM\"\n")
-
-        // 6️⃣ Example: QR Code
-        tsc.sendcommand("QRCODE 180,480,L,6,A,0,\"BPH1234\"\n")
-
-        // 7️⃣ Print
-        tsc.printlabel(1, 1)
-
-        // 8️⃣ Close port
-        tsc.closeport(2000)
-
-    } catch (e: Exception) {
-        Log.e("TSC_SDK", "Print failed: ${e.message}", e)
-    }
-}
-
-@SuppressLint("MissingPermission")
-fun printBphNotisCajWithSdk(
-    mac: String, context: Context,
-    noSiri: String,
-    tarikh: String,
-    masa: String,
-    noKenderaan: String,
-    kadarCaj: String,
-    jenisKenderaan: String,
-    lokasi: String,
-    pegawai: String,
-    savedId: String,
-    officerId: String = ""
-) {
-    val tsc = TSCActivity()
-
-    try {
-        // 1️⃣ Open Bluetooth connection
-        tsc.openport(mac)
-        tsc.setup(72, 150, 4, 8, 0, 0, 0)
-        tsc.clearbuffer()
-
-        // Load logo
-        val bmpStream = context.assets.open("jata_malaysia_384px_bw.bmp")
-        val originalBitmap = BitmapFactory.decodeStream(bmpStream)
-        bmpStream.close()
-
-        // Convert to pure mono
-        val monoBitmap = convertToMonoBmp(originalBitmap)
-
-        // Save converted bitmap to temp file
-        val tempFile = File(context.cacheDir, "jata_temp_mono.bmp")
-        FileOutputStream(tempFile).use { out ->
-            monoBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-
-        // Print image from path
-        tsc.sendpicture(150, 10, tempFile.absolutePath)
-
-        var y = 250
-
-        // 2️⃣ Header
-        tsc.sendcommand("TEXT 110,${y + 20},\"3\",0,1,1,\"JABATAN PERDANA MENTERI\"\n")
-        tsc.sendcommand("TEXT 80,${y + 60},\"3\",0,1,1,\"BAHAGIAN PENGURUSAN HARTANAH\"\n")
-        tsc.sendcommand("TEXT 200,${y + 110},\"4\",0,1,1,\"NOTIS CAJ\"\n")
-        tsc.sendcommand("TEXT 125,${y + 160},\"2\",0,1,1,\"NO SIRI : $noSiri\"\n")
-
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 40,${y + 200},520,60,\"1\",0,1,1,0,2,\"Tuan/Puan telah meletak kenderaan di tempat yang tidak dibenarkan di Kompleks F. Oleh itu, tayar kenderaan tuan/puan telah diapit dan caj akan dikenakan.\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 270
-        val boxBottom = y + 180
-        tsc.sendcommand("BOX 40,$y,560,$boxBottom,2\n")
-
-        y += 15
-        fun row(label: String, value: String): Int {
-            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"$label\"\n")
-            tsc.sendcommand("TEXT 280,$y,\"1\",0,1,1,\"$value\"\n")
-            y += 28
-            return y
-        }
-
-        row("TARIKH", "$tarikh")
-        row("MASA", "$masa")
-        row("NOMBOR KENDERAAN", "$noKenderaan")
-        row("KADAR CAJ", "$kadarCaj $jenisKenderaan")
-        row("LOKASI", "$lokasi")
-        row("DIKELUARKAN OLEH", "$pegawai")
-
-        // -----------------------------------------------@----------------------------------------------------
-        y += 25
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 40,$y,520,60,\"1\",0,1,1,0,2,\"Sila jelaskan kadar caj yang dikenakan untuk membuka apitan dan kunci tayar kenderaan tuan/puan di alamat dan waktu yang tertera di bawah:\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 50
-        val boxBottom2 = y + 230
-        tsc.sendcommand("BOX 40,$y,560,$boxBottom2,2\n")
-
-        y += 15
-        fun row2(label: String, value: String): Int {
-            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"$label\"\n")
-            tsc.sendcommand("BLOCK 200,$y,350,250,\"1\",0,1,1,0,2,\"$value\"\n")
-            return y
-        }
-
-        row2(
-            "TUNAI",
-            "Kaunter Hasil (Blok F6)\nBahagian Pengurusan\nHartanah,\nJabatan Perdana Menteri\n Aras 2, " +
-                    "Blok F6, Kompleks F\nPusat Pentadbiran Kerajaan\nPersekutuan\nLebuh Perdana Timur,\n Presint 1\n 62000 Putrajaya\n\n" +
-                    "Isnin hingga Khamis\n" +
-                    "9.00 pagi – 4.00 petang\n\n" +
-                    "Jumaat\n" +
-                    "9.00 pagi – 12.00 tengah hari\n" +
-                    "3.00 petang – 4.00 petang"
-        )
-
-        // 4️⃣ Boxed detail table
-        y += 215
-        val boxBottom3 = y + 50
-        tsc.sendcommand("BOX 40,$y,560,$boxBottom3,2\n")
-
-        y += 15
-        fun row3(label: String, value: String): Int {
-            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"$label\"\n")
-            tsc.sendcommand("BLOCK 200,$y,350,60,\"1\",0,1,1,0,2,\"$value\"\n")
-            return y
-        }
-        row3("DALAM TALIAN", "https://promis.bph.gov.my\n(24 jam)")
-
-        // 8️⃣ Print & close
-        tsc.printlabel(1, 1)
-        tsc.closeport(2000)
-
-    } catch (e: Exception) {
-        Log.e("TSC_SDK", "Print failed: ${e.message}", e)
-    }
-}
-
-@SuppressLint("MissingPermission")
-fun printBphNotisCajWithSdkV2(
+suspend fun printBphNotisCajWithSdkV2(
     mac: String, context: Context, gambarBitmap: Bitmap? = null,
     noSiri: String,
     tarikh: String,
@@ -190,12 +31,21 @@ fun printBphNotisCajWithSdkV2(
     lokasi: String,
     pegawai: String,
     savedId: String
-) {
+) = withContext(Dispatchers.Main) {
+    // Ensure we actually have an Activity if the SDK needs it
+    val activity = context as? Activity
+        ?: throw IllegalArgumentException("Context must be an Activity for TSCActivity")
+
     val tsc = TSCActivity()
 
     try {
         // 1️⃣ Open Bluetooth connection
         tsc.openport(mac)
+
+        // 2️⃣ Clear printer’s image/format buffer
+        tsc.clearbuffer()               // SDK helper
+        tsc.sendcommand("CLS\r\n")      // extra safety – TSPL command
+
         tsc.setup(100, 220, 4, 8, 0, 0, 0)
         tsc.clearbuffer()
 
@@ -365,15 +215,23 @@ fun printBphNotisCajWithSdkV2(
 
         // 8️⃣ Print & close
         tsc.printlabel(1, 1)
-        tsc.closeport(2000)
+//        tsc.closeport(2000)
 
+        // 5️⃣ (Optional) Clear again after print
+        tsc.sendcommand("CLS\r\n")
     } catch (e: Exception) {
         Log.e("TSC_SDK", "Print failed: ${e.message}", e)
+    } finally {
+        try {
+            tsc.closeport(2000)
+        } catch (e: Exception) {
+            Log.e("TSC_SDK", "Closeport failed", e)
+        }
     }
 }
 
 @SuppressLint("MissingPermission")
-fun printBphNotisCajWithSdkV2(
+suspend fun printBphNotisCajWithSdkV2(
     mac: String, context: Context,
     noSiri: String,
     tarikh: String,
@@ -383,12 +241,21 @@ fun printBphNotisCajWithSdkV2(
     jenisKenderaan: String,
     lokasi: String,
     pegawai: String
-) {
+) = withContext(Dispatchers.Main) {
+    // Ensure we actually have an Activity if the SDK needs it
+    val activity = context as? Activity
+        ?: throw IllegalArgumentException("Context must be an Activity for TSCActivity")
+
     val tsc = TSCActivity()
 
     try {
         // 1️⃣ Open Bluetooth connection
         tsc.openport(mac)
+
+        // 2️⃣ Clear printer’s image/format buffer
+        tsc.clearbuffer()               // SDK helper
+        tsc.sendcommand("CLS\r\n")      // extra safety – TSPL command
+
         tsc.setup(100, 170, 4, 8, 0, 0, 0)
         tsc.clearbuffer()
 
@@ -551,132 +418,19 @@ fun printBphNotisCajWithSdkV2(
 
         // 8️⃣ Print & close
         tsc.printlabel(1, 1)
-        tsc.closeport(2000)
+//        tsc.closeport(2000)
 
+        // 5️⃣ (Optional) Clear again after print
+        tsc.sendcommand("CLS\r\n")
     } catch (e: Exception) {
         Log.e("TSC_SDK", "Print failed: ${e.message}", e)
-    }
-}
-
-@SuppressLint("MissingPermission")
-fun printBphNotisCajWithSdk_Debug(mac: String, context: Context, gambarBitmap: Bitmap? = null) {
-    val tsc = TSCActivity()
-
-    try {
-        Log.d("TSC_DEBUG", "Opening port...")
-        tsc.openport(mac)
-        tsc.setup(72, 300, 4, 8, 0, 0, 0)
-        Log.d("TSC_DEBUG", "Port opened & setup OK")
-        tsc.clearbuffer()
-
-        // --- Send a simple test first ---
-        Log.d("TSC_DEBUG", "Sending TEXT test...")
-        tsc.sendcommand("TEXT 100,50,\"3\",0,1,1,\"DEBUG TEST PRINT\"")
-        tsc.printlabel(1, 1)
-        Thread.sleep(2000)
-        Log.d("TSC_DEBUG", "✅ TEST PRINT done")
-
-        // Now continue your normal content (step by step)
-        tsc.clearbuffer()
-
-        // Try first part: header
-        Log.d("TSC_DEBUG", "Printing header...")
-        tsc.sendcommand("TEXT 110,50,\"3\",0,1,1,\"HEADER TEST\"")
-        tsc.printlabel(1, 1)
-        Thread.sleep(1500)
-
-        // Try block text
-        tsc.clearbuffer()
-        Log.d("TSC_DEBUG", "Printing block text test...")
-        tsc.sendcommand("BLOCK 40,100,520,60,\"1\",0,1,1,0,2,\"This is block test.\"")
-        tsc.printlabel(1, 1)
-        Thread.sleep(1500)
-
-        var y = 30
-        gambarBitmap?.let { bmp ->
-            try {
-                Log.d("PRINT_IMG", "Converting uploaded image...")
-
-                // 🔹 Step 1: Resize safely (width multiple of 8)
-                val targetWidth = 384  // max width for Alpha-30L (72mm * 8 dots/mm)
-                val maxHeight = 1000   // keep within label memory buffer
-
-                val aspect = bmp.height.toFloat() / bmp.width.toFloat()
-                val newHeight = (targetWidth * aspect).toInt().coerceAtMost(maxHeight)
-
-                val resized = Bitmap.createScaledBitmap(bmp, targetWidth, newHeight, true)
-
-                // 🔹 Step 2: Convert to monochrome manually
-                val bw = Bitmap.createBitmap(targetWidth, newHeight, Bitmap.Config.ARGB_8888)
-                val c = Canvas(bw)
-                val p = Paint().apply {
-                    colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
-                }
-                c.drawBitmap(resized, 0f, 0f, p)
-
-                for (yPos in 0 until newHeight) {
-                    for (x in 0 until targetWidth) {
-                        val pixel = bw.getPixel(x, yPos)
-                        val gray = Color.red(pixel)
-                        bw.setPixel(x, yPos, if (gray < 180) Color.BLACK else Color.WHITE)
-                    }
-                }
-
-                // 🔹 Step 3: Save as BMP (never PNG)
-                val tempFile = File(context.cacheDir, "${System.currentTimeMillis()}_photo.bmp")
-                saveAsBmp(bw, tempFile)
-                Log.d("PRINT_IMG", "Saved BMP to ${tempFile.absolutePath}")
-
-                // 🔹 Step 4: Send to printer
-                val photoY = y + 100
-                val centerX = (576 - targetWidth) / 2
-
-                Log.d("TSC_DEBUG", "BMP 001 : ${tempFile.absolutePath}")
-                Log.d("TSC_DEBUG", "BMP 002 : ${tempFile.name}")
-
-                val bmpFromFile = BitmapFactory.decodeFile(tempFile.absolutePath)
-                // Print label text + image
-                tsc.sendcommand("TEXT ${centerX + 80},${photoY - 25},\"1\",0,1,1,\"GAMBAR APITAN\"")
-//                tsc.sendpicture(centerX, photoY, tempFile.absolutePath)
-                tsc.sendbitmap(centerX, photoY, bmpFromFile)
-//                tsc.sendcommand("PUTBMP $centerX,$photoY,\"${tempFile.name}\"\n");
-//                tsc.sendcommand("TEXT ${centerX + 80},${photoY - 25},\"1\",0,1,1,\"GAMBAR APITAN\"")
-//                tsc.sendpicture(centerX, photoY, tempFile.absolutePath)
-
-                Log.d("PRINT_IMG", "✅ Sent resized ${bw.width}x${bw.height} image to printer")
-
-            } catch (e: Exception) {
-                Log.e("PRINT_IMG", "❌ Failed to print uploaded image", e)
-            }
+    } finally {
+        try {
+            tsc.closeport(2000)
+        } catch (e: Exception) {
+            Log.e("TSC_SDK", "Closeport failed", e)
         }
-
-        // End
-        tsc.closeport(2000)
-        Log.d("TSC_DEBUG", "✅ Port closed successfully")
-
-    } catch (e: Exception) {
-        Log.e("TSC_DEBUG", "Print failed: ${e.message}", e)
     }
-}
-
-@SuppressLint("MissingPermission")
-fun testPrintImageOnly(mac: String, context: Context) {
-    val tsc = TSCActivity()
-    tsc.openport(mac)
-    tsc.setup(72, 100, 4, 8, 0, 0, 0)
-    tsc.clearbuffer()
-
-    val bmpStream = context.assets.open("jata_malaysia_384px_bw.bmp")
-    val bmp = BitmapFactory.decodeStream(bmpStream)
-    bmpStream.close()
-
-    val mono = convertToMonoBmp(bmp)
-    val file = File(context.cacheDir, "logo_test.bmp")
-    FileOutputStream(file).use { out -> mono.compress(Bitmap.CompressFormat.PNG, 100, out) }
-
-    tsc.sendpicture(100, 50, file.absolutePath)
-    tsc.printlabel(1, 1)
-    tsc.closeport(2000)
 }
 
 fun convertToMonoBmp(original: Bitmap): Bitmap {

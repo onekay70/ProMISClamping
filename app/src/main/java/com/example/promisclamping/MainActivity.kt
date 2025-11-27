@@ -62,6 +62,7 @@ import com.example.promisclamping.presentation.main.MainTabs
 import com.example.promisclamping.print.printBphNotisCajWithSdkV2
 import kotlinx.coroutines.launch
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -187,6 +188,9 @@ fun DaftarKompaunScreen() {
     var isSaving by remember { mutableStateOf(false) }
     var savedId by remember { mutableStateOf<String?>(null) }
 
+    // 🔒 Lock form once successfully saved
+    val isFormLocked = savedId != null
+
     val blokList = listOf(
         "BLOK F1",
         "BLOK F2",
@@ -229,7 +233,7 @@ fun DaftarKompaunScreen() {
                     capitalization = KeyboardCapitalization.Characters
                 ),
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving
+                enabled = !isSaving && !isFormLocked
             )
 
             // --- Jenis Kenderaan ---
@@ -238,14 +242,14 @@ fun DaftarKompaunScreen() {
             JenisKenderaanDropdown(
                 selected = selectedJenis,
                 onSelect = { selectedJenis = it },
-                enabled = !isSaving
+                enabled = !isSaving && !isFormLocked
             )
 
             // --- Blok ---
             var blokExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = blokExpanded,
-                onExpandedChange = { if (!isSaving) blokExpanded = !blokExpanded }
+                onExpandedChange = { if (!isSaving && !isFormLocked) blokExpanded = !blokExpanded }
             ) {
                 OutlinedTextField(
                     readOnly = true,
@@ -256,7 +260,7 @@ fun DaftarKompaunScreen() {
                     modifier = Modifier
                         .menuAnchor()
                         .fillMaxWidth(),
-                    enabled = !isSaving
+                    enabled = !isSaving && !isFormLocked
                 )
                 ExposedDropdownMenu(
                     expanded = blokExpanded,
@@ -277,7 +281,7 @@ fun DaftarKompaunScreen() {
                 singleLine = true,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving
+                enabled = !isSaving && !isFormLocked
             )
 
             val context = LocalContext.current
@@ -313,8 +317,8 @@ fun DaftarKompaunScreen() {
                 Text("Gambar Apitan")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { if (!isSaving) pickImage.launch("image/*") },
-                        enabled = !isSaving,
+                        onClick = { if (!isSaving && !isFormLocked) pickImage.launch("image/*") },
+                        enabled = !isSaving && !isFormLocked,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SecondaryBlue,
                             contentColor = Color.White
@@ -326,9 +330,9 @@ fun DaftarKompaunScreen() {
                     }
                     if (gambarUri != null) {
                         AssistChip(
-                            onClick = { if (!isSaving) pickImage.launch("image/*") },
+                            onClick = { if (!isSaving && !isFormLocked) pickImage.launch("image/*") },
                             label = { Text("Tukar Gambar") },
-                            enabled = !isSaving
+                            enabled = !isSaving && !isFormLocked
                         )
                     }
                 }
@@ -353,7 +357,7 @@ fun DaftarKompaunScreen() {
             ) {
                 /* 🟩 SIMPAN */
                 Button(
-                    enabled = !isSaving,
+                    enabled = !isSaving && !isFormLocked,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryGreen,
                         contentColor = Color.White
@@ -450,11 +454,15 @@ fun DaftarKompaunScreen() {
                     Text(if (isSaving) "Menyimpan..." else "Simpan")
                 }
 
+                val scope = rememberCoroutineScope()
+                var isPrinting by remember { mutableStateOf(false) }
+
                 /* 🟦 CETAK (only visible after save) */
-                if (savedId != null) {
+                AnimatedVisibility(visible = !isSaving && savedId != null) {
                     OutlinedButton(
                         onClick = {
                             scope.launch {
+                                isPrinting = true
                                 try {
                                     val missing = btPermissions.any {
                                         ContextCompat.checkSelfPermission(
@@ -497,12 +505,15 @@ fun DaftarKompaunScreen() {
                                     snackbarHostState.showSnackbar("Cetak dihantar ✅")
                                 } catch (e: Exception) {
                                     snackbarHostState.showSnackbar("Gagal cetak: ${e.message}")
+                                } finally {
+                                    isPrinting = false
                                 }
                             }
                         },
+                        enabled = !isPrinting,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Cetak Kompaun")
+                        Text(if (isPrinting) "Mencetak..." else "Cetak Kompaun")
                     }
                 }
 
@@ -512,11 +523,13 @@ fun DaftarKompaunScreen() {
                         noKenderaan = ""
                         selectedJenis = VehicleType("03", "KERETA")
                         blok = blokList.first()
-                        tempatKompaun = ""
+                        tempatKompaun = "PARKING"
                         gambarUri = null
                         gambarSizeBytes = null
+                        gambarBitmap = null
                         savedId = null
                         lastSaved = null
+                        isSaving = false     // just to be safe
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
