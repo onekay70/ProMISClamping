@@ -174,15 +174,17 @@ suspend fun printBphNotisCajWithSdkV2(
         y += 20
         tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Rujukan: JKPTG/UTP/356/17 JLD 3 bertarikh\"\n")
         y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    30 September 2022\"\n")
+        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    30 September 2022;\"\n")
         y += 20
         tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"2. Kadar Caj RM50.00/ RM20.00:\"\n")
         y += 20
         tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kelulusan Kementerian Kewangan\"\n")
         y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Malaysia\"\n")
+        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Malaysia. Rujukan: MOF.PAM.600-29/44/1 Jld.5 (5)\"\n")
         y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"3. Penafian BPH dan Kerajaan Malaysia tidak\"\n")
+        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    bertarikh 17 November 2022; \"\n")
+        y += 20
+        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"3. Penafian: BPH dan Kerajaan Malaysia tidak\"\n")
         y += 20
         tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   bertanggungjawab atas sebarang kehilangan\"\n")
         y += 20
