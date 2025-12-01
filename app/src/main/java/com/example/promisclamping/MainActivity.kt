@@ -69,6 +69,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.ButtonDefaults
@@ -212,6 +214,7 @@ fun DaftarKompaunScreen() {
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
