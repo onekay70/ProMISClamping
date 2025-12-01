@@ -210,7 +210,7 @@ suspend fun printBphNotisCajWithSdkV2(
                 }
 
                 val photoY = y + 50 // offset below table
-                tsc.sendpicture(10, photoY, tempFile.absolutePath)
+                tsc.sendpicture(100, photoY, tempFile.absolutePath)
             } catch (e: Exception) {
                 Log.e("PRINT_IMG", "Failed to print uploaded image", e)
             }
