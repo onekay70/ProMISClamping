@@ -198,9 +198,12 @@ suspend fun printBphNotisCajWithSdkV2(
         gambarBitmap?.let { bmp ->
             try {
                 // Convert to pure mono
-                val monoBitmap = convertToMonoBmp(bmp)
+//                val monoBitmap = convertToMonoBmp(bmp)
+                val monoBitmap = convertToMonoBmpResized(bmp)
+                val jpegBytes = bitmapToJpegUnder1Mb(monoBitmap)
 
                 // Save converted bitmap to temp file
+//                val tempFile = File(context.cacheDir, "${savedId}_temp_mono.bmp")
                 val tempFile = File(context.cacheDir, "${savedId}_temp_mono.bmp")
                 FileOutputStream(tempFile).use { out ->
                     monoBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
@@ -552,4 +555,82 @@ fun saveAsBmp(bitmap: Bitmap, file: File) {
     }
 
     FileOutputStream(file).use { it.write(buffer.array()) }
+}
+
+fun convertToMonoBmpResized(
+    original: Bitmap,
+    maxWidth: Int = 384,          // adjust to your printer head width if needed
+    maxHeight: Int = 384,         // or larger if you want
+    maxBytes: Int = 1_000_000     // ~1 MB in memory
+): Bitmap {
+    val origWidth = original.width
+    val origHeight = original.height
+
+    if (origWidth <= 0 || origHeight <= 0) {
+        throw IllegalArgumentException("Invalid bitmap size: $origWidth x $origHeight")
+    }
+
+    // 1️⃣ Base scale from width/height constraints
+    var scale = 1f
+    val scaleW = maxWidth.toFloat() / origWidth.toFloat()
+    val scaleH = maxHeight.toFloat() / origHeight.toFloat()
+    scale = minOf(1f, scaleW, scaleH)   // don't upscale; only shrink
+
+    // 2️⃣ Extra scale from maxBytes (in-memory bitmap size)
+    val maxPixels = maxBytes / 4       // ARGB_8888 = 4 bytes per pixel
+    val origPixels = origWidth.toLong() * origHeight.toLong()
+    if (origPixels > maxPixels) {
+        val scaleByBytes = kotlin.math.sqrt(maxPixels.toDouble() / origPixels.toDouble()).toFloat()
+        scale = minOf(scale, scaleByBytes)
+    }
+
+    // 3️⃣ Actually scale the bitmap if needed
+    val scaledBitmap = if (scale < 1f) {
+        val newWidth = (origWidth * scale).toInt().coerceAtLeast(1)
+        val newHeight = (origHeight * scale).toInt().coerceAtLeast(1)
+        Bitmap.createScaledBitmap(original, newWidth, newHeight, true)
+    } else {
+        original
+    }
+
+    val width = scaledBitmap.width
+    val height = scaledBitmap.height
+
+    // 4️⃣ Create target bitmap and draw grayscale
+    val monoBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(monoBitmap)
+    val paint = Paint()
+    val colorMatrix = ColorMatrix().apply {
+        setSaturation(0f) // grayscale
+    }
+    paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+    canvas.drawBitmap(scaledBitmap, 0f, 0f, paint)
+
+    // 5️⃣ Threshold to pure black & white
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val pixel = monoBitmap.getPixel(x, y)
+            val gray = Color.red(pixel) // after grayscale, R=G=B
+            monoBitmap.setPixel(x, y, if (gray < 160) Color.BLACK else Color.WHITE)
+        }
+    }
+
+    return monoBitmap
+}
+
+fun bitmapToJpegUnder1Mb(
+    bitmap: Bitmap,
+    maxBytes: Int = 1_000_000,
+    minQuality: Int = 40
+): ByteArray {
+    var quality = 100
+    val stream = java.io.ByteArrayOutputStream()
+
+    do {
+        stream.reset()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+        quality -= 5
+    } while (stream.size() > maxBytes && quality >= minQuality)
+
+    return stream.toByteArray()
 }
