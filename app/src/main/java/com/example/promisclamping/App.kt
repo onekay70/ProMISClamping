@@ -11,7 +11,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         authApi = Retrofit.Builder()
-            .baseUrl("https://gerbang.bph.gov.my/api/")
+            .baseUrl("https://gerbang.bph.gov.my/api/pentadbiran/v1/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AuthApi::class.java)
