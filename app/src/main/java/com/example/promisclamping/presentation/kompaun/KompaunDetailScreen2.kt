@@ -36,7 +36,7 @@ fun KompaunDetailScreen2(
     val tokenStore = remember { TokenStore(ctx) }
     val scope = rememberCoroutineScope()
 
-    var selectedStatus by remember { mutableStateOf(kompaun.status ?: "BATAL") }
+    var selectedStatus by remember { mutableStateOf(kompaun.status ?: "SILA PILIH") }
     var catatan by remember { mutableStateOf(kompaun.catatanBatal ?: "") }
     var isSaving by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -112,7 +112,7 @@ fun KompaunDetailScreen2(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                listOf("BATAL", "SELESAI").forEach { option ->
+                listOf("BATAL").forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option) },
                         onClick = {

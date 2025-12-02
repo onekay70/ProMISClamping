@@ -13,6 +13,6 @@ data class AuthResponse(
 )
 
 interface AuthApi {
-    @POST("authenticate")
+    @POST("mobile/clamping/authenticate")
     suspend fun authenticate(@Body body: AuthRequest): AuthResponse
 }

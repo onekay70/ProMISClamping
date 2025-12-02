@@ -539,6 +539,8 @@ fun DaftarKompaunScreen() {
                     Text("Daftar Baru")
                 }
             }
+
+            Spacer(Modifier.height(20.dp))
         }
     }
 }

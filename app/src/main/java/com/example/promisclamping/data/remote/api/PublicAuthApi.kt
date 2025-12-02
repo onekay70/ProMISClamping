@@ -5,7 +5,7 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 interface PublicAuthApi {
-    @POST("pentadbiran/v1/public/authenticate")
+    @POST("public/authenticate")
     suspend fun getSessionToken(@Body body: PublicAuthRequest): PublicAuthResponse
 }
 

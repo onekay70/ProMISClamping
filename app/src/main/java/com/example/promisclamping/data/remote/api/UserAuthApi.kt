@@ -8,7 +8,7 @@ import retrofit2.http.POST
 
 interface UserAuthApi {
 
-    @POST("pentadbiran/v1/authenticate")
+    @POST("mobile/clamping/authenticate")
     suspend fun login(
         @Header("Authorization") bearer: String,
         @Body body: UserLoginRequest

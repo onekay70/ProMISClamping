@@ -6,6 +6,6 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 interface AuthApi {
-    @POST("pentadbiran/v1/public/authenticate")
+    @POST("public/authenticate")
     suspend fun authenticate(@Body body: AuthRequest): AuthResponse
 }
