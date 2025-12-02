@@ -3,6 +3,7 @@ package com.example.promisclamping.presentation.auth
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.example.promisclamping.Config.PENTADBIRAN_LOGIN_BASE_URL
 import com.example.promisclamping.data.auth.LoginAuthRepositoryImpl
 import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.data.remote.api.AuthApi
@@ -22,7 +23,7 @@ class AuthViewModelFactory(
 
             // Shared Retrofit for both auth endpoints
             val retrofit = Retrofit.Builder()
-                .baseUrl("https://gerbang.bph.gov.my/api/")
+                .baseUrl(PENTADBIRAN_LOGIN_BASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
 

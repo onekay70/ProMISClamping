@@ -3,7 +3,7 @@ package com.example.promisclamping.network
 import UploadService
 import android.content.Context
 import com.example.promisclamping.Config
-import com.example.promisclamping.Config.PENTADBIRAN_BASE_URL
+import com.example.promisclamping.Config.PENTADBIRAN_PUBLIC_BASE_URL
 import com.example.promisclamping.Config.SEC_TOKEN_LOGIN
 import com.example.promisclamping.Config.SEC_TOKEN_PASSWORD
 import com.example.promisclamping.data.local.TokenStore
@@ -21,7 +21,7 @@ object ApiClient {
     // create Retrofit instance for the authentication endpoint
     private fun authRetrofit(): Retrofit =
         Retrofit.Builder()
-            .baseUrl(PENTADBIRAN_BASE_URL)   // must end with /
+            .baseUrl(PENTADBIRAN_PUBLIC_BASE_URL)   // must end with /
             .addConverterFactory(GsonConverterFactory.create())
             .build()
 
