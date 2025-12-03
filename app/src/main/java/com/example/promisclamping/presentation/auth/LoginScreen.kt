@@ -45,7 +45,6 @@ import com.example.promisclamping.ui.theme.PageBackground
 import com.example.promisclamping.ui.theme.SecondaryBlue
 import com.example.promisclamping.ui.theme.TextDark
 
-
 @Composable
 fun LoginScreen(
     onLogin: (String, String) -> Unit,
@@ -90,12 +89,12 @@ fun DecoratedLoginContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 48.dp)
+                .padding(top = 88.dp)
                 .align(Alignment.TopCenter),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
-                painter = painterResource(id = R.drawable.landing_page_title),
+                painter = painterResource(id = R.drawable.landing_page_title_h_s),
                 contentDescription = "ProMIS Logo",
                 modifier = Modifier
                     .fillMaxWidth(0.85f)  // 85% width, adjust if needed
@@ -136,6 +135,7 @@ fun DecoratedLoginContent(
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFE0E7FF)
                         )
+                        Spacer(Modifier.height(14.dp))
                     }
                 }
 
@@ -166,8 +166,6 @@ fun DecoratedLoginContent(
                         }
                     }
                 }
-
-                Spacer(Modifier.height(4.dp))
 
                 // 📋 Form fields
                 Column(

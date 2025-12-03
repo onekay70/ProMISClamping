@@ -68,14 +68,28 @@ fun KompaunHistoryScreen(
         }
     }
 
+    fun reloadFromStart() {
+        scope.launch {
+            isLoading = true
+            error = null
+            pageNo = 1
+            hasMore = true
+            loadPage(page = 1, append = false)
+        }
+    }
+
     LaunchedEffect(Unit) {
-        loadPage(page = 1, append = false)
+//        loadPage(page = 1, append = false)
+        reloadFromStart()
     }
 
     if (selectedKompaun != null) {
         KompaunHistoryDetailScreen(
             kompaun = selectedKompaun!!,
-            onBack = { selectedKompaun = null }
+            onBack = {
+                selectedKompaun = null
+                reloadFromStart()   // 🔄 refresh list when detail closes
+            }
         )
     } else {
         KompaunListContent(
