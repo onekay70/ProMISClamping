@@ -69,6 +69,8 @@ fun KompaunHistoryDetailScreen(
             ) {
                 Text("Kembali")
             }
+
+            Spacer(Modifier.height(30.dp))
         }
     }
 }
