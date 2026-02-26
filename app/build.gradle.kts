@@ -104,6 +104,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.material.icons.extended)
 
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("com.google.accompanist:accompanist-permissions:0.35.0-alpha")
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.junit)

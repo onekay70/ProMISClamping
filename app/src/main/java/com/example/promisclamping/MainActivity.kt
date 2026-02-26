@@ -89,6 +89,13 @@ import com.example.promisclamping.util.FilePart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import android.content.Context
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
+import android.os.Build
+import androidx.compose.runtime.LaunchedEffect
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 class MainActivity : ComponentActivity() {
 
@@ -102,8 +109,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             ProMISClampingTheme {
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize(),
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val authState by authViewModel.authState.collectAsState()
@@ -128,8 +134,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-
                         is AuthState.Authenticated -> {
+                            // MASUKKAN DI SINI: Sebaik sahaja login berjaya,
+                            // app terus minta permission Bluetooth untuk semua tab!
+                            RequestBluetoothPermissionsEagerly()
+
                             MainTabs(
                                 onLogout = { authViewModel.logout() }
                             )
@@ -159,7 +168,6 @@ fun DaftarKompaunScreen() {
             Toast.makeText(context, "Bluetooth permissions denied", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     var lastSaved by remember { mutableStateOf<ClampingResponseForm?>(null) }
 
@@ -306,10 +314,13 @@ fun DaftarKompaunScreen() {
                     }
 
                     // Decode bitmap for printing
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    inputStream?.close()
-                    gambarBitmap = bitmap
+//                    val inputStream = context.contentResolver.openInputStream(uri)
+//                    val bitmap = BitmapFactory.decodeStream(inputStream)
+//                    inputStream?.close()
+//                    gambarBitmap = bitmap
+
+                    // Decode bitmap for printing - cara baru
+                    gambarBitmap = getBitmapWithExif(context, uri)
                 }
             }
 
@@ -656,5 +667,58 @@ suspend fun uploadJataToPrinter(mac: String, bitmapBytes: ByteArray) {
 
         out.write("PRINT 1,1\n".toByteArray())
         out.flush()
+    }
+}
+
+fun getBitmapWithExif(context: Context, uri: Uri): Bitmap? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+
+        val exifStream = context.contentResolver.openInputStream(uri)
+        val exif = exifStream?.let { ExifInterface(it) }
+        val orientation = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) ?: ExifInterface.ORIENTATION_NORMAL
+        exifStream?.close()
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+        }
+
+        if (bitmap != null) {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } else null
+    } catch (e: Exception) {
+        null
+    }
+}
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun RequestBluetoothPermissionsEagerly() {
+    // Tentukan permission ikut versi Android
+    val bluetoothPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        listOf(
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.BLUETOOTH_SCAN
+        )
+    } else {
+        listOf(
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+    }
+
+    val permissionState = rememberMultiplePermissionsState(permissions = bluetoothPermissions)
+
+    LaunchedEffect(Unit) {
+        if (!permissionState.allPermissionsGranted) {
+            // Ini akan paksa dialog permission keluar masa first time buka app selepas login
+            permissionState.launchMultiplePermissionRequest()
+        }
     }
 }

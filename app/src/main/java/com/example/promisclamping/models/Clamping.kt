@@ -69,11 +69,14 @@ data class KompaunItem(
     val masaKompaunStr: String?,
     val idPemilik: String?,
     val namaPemilik: String?,
+    val idPegawai: String?,
+    val namaPegawai: String?,
     val jenisKenderaan: String?,
     val tempat: String?,
     val lokasi: String?,
     val kadarKompaun: String?,
     val catatanBatal: String?,
+    val dirClamp1: String?,
     val dirClamp2: String?,
 )
 

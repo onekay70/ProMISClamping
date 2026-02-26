@@ -28,6 +28,28 @@ import com.example.promisclamping.ui.theme.Warning
 import com.example.promisclamping.util.asTextPart
 import com.example.promisclamping.util.toFilePart
 import kotlinx.coroutines.launch
+import com.example.promisclamping.Config.DEV_MAC_ADD
+import com.example.promisclamping.print.printBphNotisCajWithSdkV2
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import coil.compose.AsyncImage
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import android.bluetooth.BluetoothManager
+import android.widget.Toast
+import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,9 +106,33 @@ fun KompaunDetailScreen(
                 kompaun.kadarKompaun?.toString() ?: "-"
             )
 
-            Divider()
+            Spacer(Modifier.height(16.dp))
+            // Paparkan Gambar Clamp 1 jika ada
+            if (!kompaun.dirClamp1.isNullOrBlank()) {
+                // Kalau dirClamp1 tu cuma 'path' (contoh: /uploads/img.jpg),
+                // pastikan tambah Base URL. Kalau dah full URL, letak kompaun.dirClamp1 terus.
+                val imageUrl = "${Config.UPLOAD_BASE_URL}${kompaun.dirClamp1}"
+                Text(
+                    text = "Gambar Clamping: ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Gambar Clamp 1",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+            }
+            Spacer(Modifier.height(30.dp))
 
-            var expanded by remember { mutableStateOf(false) }
+//            Divider()
+
+//            var expanded by remember { mutableStateOf(false) }
 
 //        ExposedDropdownMenuBox(
 //            expanded = expanded,
@@ -321,6 +367,77 @@ fun KompaunDetailScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (isBatal) "Menyimpan..." else "Batal")
+            }
+
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            var isPrinting by remember { mutableStateOf(false) }
+
+            // --- Butang Cetak Semula ---
+            Button(
+                onClick = {
+                    // 1. Semak Status Bluetooth sebelum cetak
+                    val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                    val bluetoothAdapter = bluetoothManager.adapter
+
+                    if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
+                        Toast.makeText(context, "Sila hidupkan Bluetooth terlebih dahulu!", Toast.LENGTH_LONG).show()
+                        return@Button // Berhentikan proses kalau Bluetooth tutup
+                    }
+
+                    scope.launch {
+                        isPrinting = true
+                        try {
+                            var fetchedBitmap: Bitmap? = null
+
+                            // Cek kalau ada URL gambar, kita fetch jadi Bitmap dulu
+                            if (!kompaun.dirClamp1.isNullOrBlank()) {
+                                val imageUrl = "${Config.UPLOAD_BASE_URL}${kompaun.dirClamp1}"
+
+                                val request = ImageRequest.Builder(context)
+                                    .data(imageUrl)
+                                    // allowHardware(false) ni SANGAT PENTING untuk printer!
+                                    // Printer perlukan perisian pixel (software bitmap), bukan hardware bitmap.
+                                    .allowHardware(false)
+                                    .build()
+
+                                val result = context.imageLoader.execute(request)
+                                if (result is SuccessResult) {
+                                    fetchedBitmap = (result.drawable as? BitmapDrawable)?.bitmap
+                                }
+                            }
+
+                            // Hantar ke fungsi print
+                            printBphNotisCajWithSdkV2(
+                                mac = DEV_MAC_ADD,
+                                context = context,
+                                gambarBitmap = fetchedBitmap, // <-- Pass bitmap yang dah di-fetch tadi (atau null jika gagal/tiada)
+                                noSiri = kompaun.noKompaun ?: "-",
+                                tarikh = kompaun.tarikhKompaunStr ?: "-",
+                                masa = kompaun.masaKompaunStr ?: "-",
+                                noKenderaan = kompaun.noKenderaan ?: "-",
+                                kadarCaj = kompaun.kadarKompaun?.toString() ?: "50",
+                                jenisKenderaan = kompaun.jenisKenderaan ?: "-",
+                                lokasi = kompaun.lokasi ?: "KOMPLEKS F",
+                                pegawai = kompaun.namaPegawai ?: "-",
+                                savedId = kompaun.id ?: "-"
+                            )
+                        } catch (e: Exception) {
+                            // 2. Buka balik Toast ni supaya kita tahu apa ralat sebenar!
+                            Toast.makeText(context, "Ralat Cetakan: ${e.message}", Toast.LENGTH_LONG).show()
+                        } finally {
+                            isPrinting = false
+                        }
+                    }
+                },
+                enabled = !isPrinting,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(if (isPrinting) "Mencetak..." else "Cetak Semula Kompaun")
             }
 
             // --- Back Button at the very bottom ---
