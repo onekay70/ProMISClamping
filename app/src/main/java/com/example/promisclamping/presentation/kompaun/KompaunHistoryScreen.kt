@@ -6,7 +6,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.models.KompaunItem
-import com.example.promisclamping.models.KompaunListResponse
 import com.example.promisclamping.network.ApiClient
 import kotlinx.coroutines.launch
 
@@ -98,6 +97,7 @@ fun KompaunHistoryScreen(
             error = error,
             items = items,
             modifier = modifier.fillMaxSize(),
+            showSearch = false,
             onItemClick = { selectedKompaun = it },
             canLoadMore = hasMore,
             onLoadMore = {

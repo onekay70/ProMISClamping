@@ -15,3 +15,12 @@ val Warning = Color(0xFFFFCC00)
 val DangerOrange = Color(0xFFFFA726)
 val TextDark = Color(0xFF202124)
 val TextMuted = Color(0xFF757575)
+
+
+val ActionPayGreen = Color(0xFF2E7D32)
+val ActionDoneBlue = Color(0xFF1565C0)
+val ActionCancelRed = Color(0xFFC62828)
+val ActionPrintPurple = Color(0xFF6A1B9A)
+val ActionBackGrey = Color(0xFF607D8B)
+val ActionDisabledBg = Color(0xFFE0E0E0)
+val ActionDisabledText = Color(0xFF777777)

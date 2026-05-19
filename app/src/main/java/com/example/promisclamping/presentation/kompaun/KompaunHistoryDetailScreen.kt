@@ -39,6 +39,8 @@ import com.example.promisclamping.Config
 import coil.imageLoader
 import android.bluetooth.BluetoothManager
 import android.widget.Toast
+import com.example.promisclamping.ui.theme.ActionBackGrey
+import com.example.promisclamping.ui.theme.ActionPrintPurple
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,7 +183,7 @@ fun KompaunHistoryDetailScreen(
                 enabled = !isPrinting,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = ActionPrintPurple,
                     contentColor = Color.White
                 )
             ) {
@@ -193,7 +195,7 @@ fun KompaunHistoryDetailScreen(
                 onClick = onBack,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SecondaryBlue,
+                    containerColor = ActionBackGrey,
                     contentColor = Color.White
                 ),
             ) {

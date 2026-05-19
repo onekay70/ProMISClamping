@@ -18,10 +18,13 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.ceil
 
 @SuppressLint("MissingPermission")
 suspend fun printBphNotisCajWithSdkV2(
-    mac: String, context: Context, gambarBitmap: Bitmap? = null,
+    mac: String,
+    context: Context,
+    gambarBitmap: Bitmap? = null,
     noSiri: String,
     tarikh: String,
     masa: String,
@@ -31,213 +34,238 @@ suspend fun printBphNotisCajWithSdkV2(
     lokasi: String,
     pegawai: String,
     savedId: String
-) = withContext(Dispatchers.Main) {
-    // Ensure we actually have an Activity if the SDK needs it
-    val activity = context as? Activity
-        ?: throw IllegalArgumentException("Context must be an Activity for TSCActivity")
+) {
+    val receiptWidthMm = 100
+    val defaultHeightMmWithoutPhoto = 190
 
-    val tsc = TSCActivity()
+    val printableWidthDots = 576
+    val photoTargetWidthDots = 520
 
-    try {
-        // 1️⃣ Open Bluetooth connection
-        tsc.openport(mac)
-
-        // 2️⃣ Clear printer’s image/format buffer
-        tsc.clearbuffer()               // SDK helper
-        tsc.sendcommand("CLS\r\n")      // extra safety – TSPL command
-
-        tsc.setup(100, 220, 4, 8, 0, 0, 0)
-        tsc.clearbuffer()
-
-        // Load logo
-        val bmpStream = context.assets.open("jata_malaysia_384px_bw.bmp")
-        val originalBitmap = BitmapFactory.decodeStream(bmpStream)
-        bmpStream.close()
-
-        // Convert to pure mono
-        val monoBitmap = convertToMonoBmp(originalBitmap)
-
-        // Save converted bitmap to temp file
-        val tempFile = File(context.cacheDir, "jata_temp_mono.bmp")
-        FileOutputStream(tempFile).use { out ->
-            monoBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-
-        // Print image from path
-        tsc.sendpicture(170, 10, tempFile.absolutePath)
-
-        var y = 200
-
-        // 2️⃣ Header
-        tsc.sendcommand("TEXT 110,${y + 20},\"3\",0,1,1,\"JABATAN PERDANA MENTERI\"\n")
-        tsc.sendcommand("TEXT 80,${y + 50},\"3\",0,1,1,\"BAHAGIAN PENGURUSAN HARTANAH\"\n")
-        tsc.sendcommand("TEXT 200,${y + 110},\"4\",0,1,1,\"NOTIS CAJ\"\n")
-        tsc.sendcommand("TEXT 125,${y + 160},\"2\",0,1,1,\"NO SIRI : $noSiri\"\n")
-
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 10,${y + 200},560,70,\"1\",0,1,1,0,2,\"Tuan/Puan telah meletak kenderaan di tempat yang tidak dibenarkan di Kompleks F. Oleh itu, tayar kenderaan tuan/puan telah diapit dan caj akan dikenakan.\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 250
-        val boxBottom = y + 180
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom,2\n")
-
-        y += 15
-        fun row(label: String, value: String): Int {
-            tsc.sendcommand("TEXT 40,$y,\"1\",0,1,1,\"$label\"\n")
-            tsc.sendcommand("TEXT 280,$y,\"1\",0,1,1,\"$value\"\n")
-            y += 28
-            return y
-        }
-
-        row("TARIKH", "$tarikh")
-        row("MASA", "$masa")
-        row("NOMBOR KENDERAAN", "$noKenderaan")
-        row("KADAR CAJ", "$kadarCaj $jenisKenderaan")
-        row("LOKASI", "$lokasi")
-        row("DIKELUARKAN OLEH", "$pegawai")
-
-        // -----------------------------------------------@----------------------------------------------------
-        y += 25
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 10,$y,560,70,\"1\",0,1,1,0,2,\"Sila jelaskan kadar caj yang dikenakan untuk membuka apitan dan kunci tayar kenderaan tuan/puan di alamat dan waktu yang tertera di bawah:\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 50
-        val boxBottom2 = y + 50
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2,2\n")
-
-        y += 15
-        fun row2(label: String): Int {
-            tsc.sendcommand("BLOCK 35,$y,520,300,\"2\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2("TUNAI / DALAM TALIAN")
-
-        y += 35
-        val boxBottom2a = y + 105
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2a,2\n")
-
-        y += 10
-        fun row2a(label: String): Int {
-            tsc.sendcommand("BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2a(
-            "Kaunter Hasil (Blok F6)\nBahagian Pengurusan Hartanah,\nJabatan Perdana Menteri Aras 2,\n" +
-                    "Blok F6, Kompleks F\nPusat Pentadbiran Kerajaan Persekutuan\nLebuh Perdana Timur,\nPresint 1 62000 Putrajaya"
-        )
-
-        y += 95
-        val boxBottom2b = y + 90
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2b,2\n")
-
-        y += 10
-        fun row2b(label: String): Int {
-            tsc.sendcommand("BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2b(
-            "Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
-                    "Jumaat\n" +
-                    "9.00 pagi hingga 12.00 tengah hari\n" +
-                    "3.00 petang hingga 4.00 petang"
-        )
-
-        // 4️⃣ Boxed detail table
-        y += 80
-        val boxBottom3 = y + 30
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom3,2\n")
-
-        y += 10
-        fun row3(label: String): Int {
-            tsc.sendcommand("BLOCK 35,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-        row3("https://promis.bph.gov.my (24 jam)")
-
-        // 🟩 NOTES SECTION
-        y += 45 // adjust position below your QR or last image
-        tsc.sendcommand("TEXT 30,$y,\"2\",0,1,1,\"Nota: \"\n")
-
-        y += 30
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"1. Punca Kuasa Pengapitan Tayar Kenderaan:\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\" i. Kelulusan dari Timbalan Ketua Setiausaha\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kanan, Jabatan Perdana Menteri\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"ii. Kelulusan dari Pesuruhjaya Tanah Persekutuan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Rujukan: JKPTG/UTP/356/17 JLD 3 bertarikh\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    30 September 2022;\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"2. Kadar Caj RM50.00/ RM20.00:\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kelulusan Kementerian Kewangan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Malaysia. Rujukan: MOF.PAM.600-29/44/1\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Jld.5 (5) bertarikh 17 November 2022; \"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"3. Penafian: BPH dan Kerajaan Malaysia tidak\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   bertanggungjawab atas sebarang kehilangan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   atau kerosakan kepada kenderaan yang mungkin\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   berlaku.\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"4. Had masa membuka apitan tayar adalah dari\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   9.00 pagi hingga 9.30 malam sahaja.\"\n")
-
-        // ✅ Print uploaded image (if exists)
+    /**
+     * Process gambar dekat background thread.
+     * Jangan buat pixel loop dekat Main thread.
+     */
+    val uploadedPhotoBitmap: Bitmap? = withContext(Dispatchers.Default) {
         gambarBitmap?.let { bmp ->
-            try {
-                // Convert to pure mono
-//                val monoBitmap = convertToMonoBmp(bmp)
-                val monoBitmap = convertToMonoBmpResized(bmp)
-                val jpegBytes = bitmapToJpegUnder1Mb(monoBitmap)
-
-                // Save converted bitmap to temp file
-//                val tempFile = File(context.cacheDir, "${savedId}_temp_mono.bmp")
-                val tempFile = File(context.cacheDir, "${savedId}_temp_mono.bmp")
-                FileOutputStream(tempFile).use { out ->
-                    monoBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                }
-
-                val photoY = y + 50 // offset below table
-                tsc.sendpicture(100, photoY, tempFile.absolutePath)
-            } catch (e: Exception) {
-                Log.e("PRINT_IMG", "Failed to print uploaded image", e)
-            }
+            convertToDitheredMonoBitmapFitReceiptWidth(
+                original = bmp,
+                targetWidth = 500,
+                maxAbsoluteHeight = 900,
+                cropToLandscape = true,
+                brightness = 45,
+                contrast = 1.25f,
+                threshold = 160f
+            )
         }
+    }
 
-        // 8️⃣ Print & close
-        tsc.printlabel(1, 1)
-//        tsc.closeport(2000)
+    val noteEndY = calculateBphTemplateNoteEndY()
+    val photoY = noteEndY + 50
 
-        // 5️⃣ (Optional) Clear again after print
-        tsc.sendcommand("CLS\r\n")
-    } catch (e: Exception) {
-        Log.e("TSC_SDK", "Print failed: ${e.message}", e)
-    } finally {
+    val totalHeightMm = if (uploadedPhotoBitmap != null) {
+        val totalHeightDots = photoY + uploadedPhotoBitmap.height + 100
+        dotsToMm(totalHeightDots).coerceAtLeast(220)
+    } else {
+        defaultHeightMmWithoutPhoto
+    }
+
+    /**
+     * Semua TSC SDK call mesti dekat Main thread.
+     * Sebab SDK tu internally guna Handler.
+     */
+    withContext(Dispatchers.Main) {
+        val tsc = TSCActivity()
+
         try {
-            tsc.closeport(2000)
+            Log.d(
+                "PRINT_SETUP",
+                "receiptHeightMm=$totalHeightMm, photo=${uploadedPhotoBitmap?.width}x${uploadedPhotoBitmap?.height}, photoY=$photoY"
+            )
+
+            openTscPortWithRetry(tsc, mac)
+
+            safeTscCommand(tsc, "CLS\r\n")
+            Thread.sleep(200)
+
+            tsc.setup(receiptWidthMm, totalHeightMm, 4, 8, 0, 0, 0)
+
+//            tsc.clearbuffer()
+            safeTscCommand(tsc, "CLS\r\n")
+
+            val bmpStream = context.assets.open("jata_malaysia_384px_bw.bmp")
+            val logoBitmap = BitmapFactory.decodeStream(bmpStream)
+            bmpStream.close()
+
+            tsc.sendbitmap(178, 15, logoBitmap, 200)
+
+            var y = 200
+
+            // Header
+            tsc.sendcommand("TEXT 110,${y + 20},\"3\",0,1,1,\"JABATAN PERDANA MENTERI\"\n")
+            tsc.sendcommand("TEXT 80,${y + 50},\"3\",0,1,1,\"BAHAGIAN PENGURUSAN HARTANAH\"\n")
+            tsc.sendcommand("TEXT 200,${y + 110},\"4\",0,1,1,\"NOTIS CAJ\"\n")
+            tsc.sendcommand("TEXT 125,${y + 160},\"2\",0,1,1,\"NO SIRI : $noSiri\"\n")
+
+            tsc.sendcommand(
+                "BLOCK 10,${y + 200},560,70,\"1\",0,1,1,0,2,\"" +
+                        "Tuan/Puan telah meletak kenderaan di tempat yang tidak dibenarkan di Kompleks F. " +
+                        "Oleh itu, tayar kenderaan tuan/puan telah diapit dan caj akan dikenakan.\"\n"
+            )
+
+            y += 250
+            val boxBottom = y + 180
+            tsc.sendcommand("BOX 20,$y,560,$boxBottom,2\n")
+
+            y += 15
+
+            fun row(label: String, value: String) {
+                tsc.sendcommand("TEXT 40,$y,\"1\",0,1,1,\"$label\"\n")
+                tsc.sendcommand("TEXT 280,$y,\"1\",0,1,1,\"$value\"\n")
+                y += 28
+            }
+
+            row("TARIKH", tarikh)
+            row("MASA", masa)
+            row("NOMBOR KENDERAAN", noKenderaan)
+            row("KADAR CAJ", "$kadarCaj $jenisKenderaan")
+            row("LOKASI", lokasi)
+            row("DIKELUARKAN OLEH", pegawai)
+
+            y += 25
+
+            tsc.sendcommand(
+                "BLOCK 10,$y,560,70,\"1\",0,1,1,0,2,\"" +
+                        "Sila jelaskan kadar caj yang dikenakan untuk membuka apitan dan kunci tayar " +
+                        "kenderaan tuan/puan di alamat dan waktu yang tertera di bawah:\"\n"
+            )
+
+            y += 50
+            val boxBottom2 = y + 50
+            tsc.sendcommand("BOX 20,$y,560,$boxBottom2,2\n")
+
+            y += 15
+            tsc.sendcommand("BLOCK 35,$y,520,300,\"2\",0,1,1,0,2,\"TUNAI / DALAM TALIAN\"\n")
+
+            y += 35
+            val boxBottom2a = y + 105
+            tsc.sendcommand("BOX 20,$y,560,$boxBottom2a,2\n")
+
+            y += 10
+            tsc.sendcommand(
+                "BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"" +
+                        "Kaunter Hasil (Blok F6)\n" +
+                        "Bahagian Pengurusan Hartanah,\n" +
+                        "Jabatan Perdana Menteri Aras 2,\n" +
+                        "Blok F6, Kompleks F\n" +
+                        "Pusat Pentadbiran Kerajaan Persekutuan\n" +
+                        "Lebuh Perdana Timur,\n" +
+                        "Presint 1 62000 Putrajaya\"\n"
+            )
+
+            y += 95
+            val boxBottom2b = y + 90
+            tsc.sendcommand("BOX 20,$y,560,$boxBottom2b,2\n")
+
+            y += 10
+            tsc.sendcommand(
+                "BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"" +
+                        "Isnin hingga Khamis\n" +
+                        "9.00 pagi hingga 4.00 petang\n\n" +
+                        "Jumaat\n" +
+                        "9.00 pagi hingga 12.00 tengah hari\n" +
+                        "3.00 petang hingga 4.00 petang\"\n"
+            )
+
+            y += 80
+            val boxBottom3 = y + 30
+            tsc.sendcommand("BOX 20,$y,560,$boxBottom3,2\n")
+
+            y += 10
+            tsc.sendcommand("BLOCK 35,$y,520,300,\"1\",0,1,1,0,2,\"https://promis.bph.gov.my (24 jam)\"\n")
+
+            y += 45
+            tsc.sendcommand("TEXT 30,$y,\"2\",0,1,1,\"Nota: \"\n")
+
+            y += 30
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"1. Punca Kuasa Pengapitan Tayar Kenderaan:\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\" i. Kelulusan dari Timbalan Ketua Setiausaha\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kanan, Jabatan Perdana Menteri\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"ii. Kelulusan dari Pesuruhjaya Tanah Persekutuan\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Rujukan: JKPTG/UTP/356/17 JLD 3 bertarikh\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    30 September 2022;\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"2. Kadar Caj RM50.00/ RM20.00:\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kelulusan Kementerian Kewangan\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Malaysia. Rujukan: MOF.PAM.600-29/44/1\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Jld.5 (5) bertarikh 17 November 2022; \"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"3. Penafian: BPH dan Kerajaan Malaysia tidak\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   bertanggungjawab atas sebarang kehilangan\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   atau kerosakan kepada kenderaan yang mungkin\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   berlaku.\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"4. Had masa membuka apitan tayar adalah dari\"\n")
+            y += 20
+            tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   9.00 pagi hingga 9.30 malam sahaja.\"\n")
+
+            uploadedPhotoBitmap?.let { photo ->
+                val actualPhotoY = y + 50
+
+                val contentLeftX = 20
+                val contentRightX = 560
+                val contentWidth = contentRightX - contentLeftX
+
+                val actualPhotoX =
+                    contentLeftX + ((contentWidth - photo.width) / 2).coerceAtLeast(0)
+
+                Log.d(
+                    "PRINT_IMG",
+                    "sendbitmap x=$actualPhotoX, y=$actualPhotoY, size=${photo.width}x${photo.height}"
+                )
+
+                tsc.sendbitmap(actualPhotoX, actualPhotoY, photo, 128)
+
+                Thread.sleep(1200)
+            }
+
+            Thread.sleep(500)
+
+            tsc.printlabel(1, 1)
+
+            Thread.sleep(2500)
+
+//            tsc.clearbuffer()
+//            safeTscCommand(tsc, "CLS\r\n")
+
         } catch (e: Exception) {
-            Log.e("TSC_SDK", "Closeport failed", e)
+            Log.e("TSC_SDK", "Print failed: ${e.message}", e)
+            throw e
+        } finally {
+            try {
+                Thread.sleep(500)
+                tsc.closeport(2000)
+            } catch (e: Exception) {
+                Log.e("TSC_SDK", "Closeport failed", e)
+            }
         }
     }
 }
 
 @SuppressLint("MissingPermission")
 suspend fun printBphNotisCajWithSdkV2(
-    mac: String, context: Context,
+    mac: String,
+    context: Context,
     noSiri: String,
     tarikh: String,
     masa: String,
@@ -246,395 +274,274 @@ suspend fun printBphNotisCajWithSdkV2(
     jenisKenderaan: String,
     lokasi: String,
     pegawai: String
-) = withContext(Dispatchers.Main) {
-    // Ensure we actually have an Activity if the SDK needs it
-    val activity = context as? Activity
-        ?: throw IllegalArgumentException("Context must be an Activity for TSCActivity")
-
-    val tsc = TSCActivity()
-
-    try {
-        // 1️⃣ Open Bluetooth connection
-        tsc.openport(mac)
-
-        // 2️⃣ Clear printer’s image/format buffer
-        tsc.clearbuffer()               // SDK helper
-        tsc.sendcommand("CLS\r\n")      // extra safety – TSPL command
-
-        tsc.setup(100, 170, 4, 8, 0, 0, 0)
-        tsc.clearbuffer()
-
-        // Load logo
-        val bmpStream = context.assets.open("jata_malaysia_384px_bw.bmp")
-        val originalBitmap = BitmapFactory.decodeStream(bmpStream)
-        bmpStream.close()
-
-        // Convert to pure mono
-        val monoBitmap = convertToMonoBmp(originalBitmap)
-
-        // Save converted bitmap to temp file
-        val tempFile = File(context.cacheDir, "jata_temp_mono.bmp")
-        FileOutputStream(tempFile).use { out ->
-            monoBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-
-        // Print image from path
-        tsc.sendpicture(170, 10, tempFile.absolutePath)
-
-        var y = 200
-
-        // 2️⃣ Header
-        tsc.sendcommand("TEXT 110,${y + 20},\"3\",0,1,1,\"JABATAN PERDANA MENTERI\"\n")
-        tsc.sendcommand("TEXT 80,${y + 50},\"3\",0,1,1,\"BAHAGIAN PENGURUSAN HARTANAH\"\n")
-        tsc.sendcommand("TEXT 200,${y + 110},\"4\",0,1,1,\"NOTIS CAJ\"\n")
-        tsc.sendcommand("TEXT 125,${y + 160},\"2\",0,1,1,\"NO SIRI : $noSiri\"\n")
-
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 10,${y + 200},560,70,\"1\",0,1,1,0,2,\"Tuan/Puan telah meletak kenderaan di tempat yang tidak dibenarkan di Kompleks F. Oleh itu, tayar kenderaan tuan/puan telah diapit dan caj akan dikenakan.\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 250
-        val boxBottom = y + 180
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom,2\n")
-
-        y += 15
-        fun row(label: String, value: String): Int {
-            tsc.sendcommand("TEXT 40,$y,\"1\",0,1,1,\"$label\"\n")
-            tsc.sendcommand("TEXT 260,$y,\"1\",0,1,1,\"$value\"\n")
-            y += 28
-            return y
-        }
-
-        row("TARIKH", "$tarikh")
-        row("MASA", "$masa")
-        row("NOMBOR KENDERAAN", "$noKenderaan")
-        row("KADAR CAJ", "$kadarCaj $jenisKenderaan")
-        row("LOKASI", "$lokasi")
-        row("DIKELUARKAN OLEH", "$pegawai")
-
-        // -----------------------------------------------@----------------------------------------------------
-        y += 25
-        // 3️⃣ Info text
-        tsc.sendcommand("BLOCK 10,$y,560,70,\"1\",0,1,1,0,2,\"Sila jelaskan kadar caj yang dikenakan untuk membuka apitan dan kunci tayar kenderaan tuan/puan di alamat dan waktu yang tertera di bawah:\"\n")
-
-        // 4️⃣ Boxed detail table
-        y += 50
-        val boxBottom2 = y + 50
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2,2\n")
-
-        y += 15
-        fun row2(label: String): Int {
-            tsc.sendcommand("BLOCK 35,$y,520,300,\"2\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2("TUNAI / DALAM TALIAN")
-
-        y += 35
-        val boxBottom2a = y + 105
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2a,2\n")
-
-        y += 10
-        fun row2a(label: String): Int {
-            tsc.sendcommand("BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2a(
-            "Kaunter Hasil (Blok F6)\nBahagian Pengurusan Hartanah,\nJabatan Perdana Menteri Aras 2,\n" +
-                    "Blok F6, Kompleks F\nPusat Pentadbiran Kerajaan Persekutuan\nLebuh Perdana Timur,\nPresint 1 62000 Putrajaya"
-        )
-
-        y += 95
-        val boxBottom2b = y + 90
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom2b,2\n")
-
-        y += 10
-        fun row2b(label: String): Int {
-            tsc.sendcommand("BLOCK 40,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-
-        row2b(
-            "Isnin hingga Khamis\n9.00 pagi hingga 4.00 petang\n\n" +
-                    "Jumaat\n" +
-                    "9.00 pagi hingga 12.00 tengah hari\n" +
-                    "3.00 petang hingga 4.00 petang"
-        )
-
-        // 4️⃣ Boxed detail table
-        y += 80
-        val boxBottom3 = y + 30
-        tsc.sendcommand("BOX 20,$y,560,$boxBottom3,2\n")
-
-        y += 10
-        fun row3(label: String): Int {
-            tsc.sendcommand("BLOCK 35,$y,520,300,\"1\",0,1,1,0,2,\"$label\"\n")
-            return y
-        }
-        row3("https://promis.bph.gov.my (24 jam)")
-
-        // 🟩 NOTES SECTION
-        y += 45 // adjust position below your QR or last image
-        tsc.sendcommand("TEXT 30,$y,\"2\",0,1,1,\"Nota: \"\n")
-
-        y += 30
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"1. Punca Kuasa Pengapitan Tayar Kenderaan:\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\" i. Kelulusan dari Timbalan Ketua Setiausaha\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kanan, Jabatan Perdana Menteri\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"ii. Kelulusan dari Pesuruhjaya Tanah Persekutuan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Rujukan: JKPTG/UTP/356/17 JLD 3 bertarikh\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    30 September 2022\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"2. Kadar Caj RM50.00/ RM20.00:\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Kelulusan Kementerian Kewangan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Malaysia. Rujukan: MOF.PAM.600-29/44/1\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 60,$y,\"1\",0,1,1,\"    Jld.5 (5) bertarikh 17 November 2022; \"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"3. Penafian BPH dan Kerajaan Malaysia tidak\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   bertanggungjawab atas sebarang kehilangan\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   atau kerosakan kepada kenderaan yang mungkin\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   berlaku.\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"4. Had masa membuka apitan tayar adalah dari\"\n")
-        y += 20
-        tsc.sendcommand("TEXT 50,$y,\"1\",0,1,1,\"   9.00 pagi hingga 9.30 malam sahaja.\"\n")
-
-//        y += 35
-//        tsc.sendcommand("BLOCK 60,$y,500,400,\"1\",0,1,1,0,2,\"\n" +
-//                "1. Punca Kuasa Pengapitan Tayar Kenderaan:\n" +
-//                "   • Kelulusan dari Timbalan Ketua Setiausaha Kanan, Jabatan Perdana Menteri\n" +
-//                "   • Kelulusan dari Pesuruhjaya Tanah Persekutuan\n" +
-//                "     Rujukan: JKPTG/UTP/356/17 JLD 3 bertarikh 30 September 2022\n\n" +
-//                "2. Kadar Caj RM50.00 / RM20.00:\n" +
-//                "   Kelulusan Kementerian Kewangan Malaysia\n" +
-//                "   Rujukan: MOF.PAM.600-29/44/1 JLD.5 (5) bertarikh 17 November 2022\n\n" +
-//                "3. Penafian BPH dan Kerajaan Malaysia tidak bertanggungjawab atas sebarang kehilangan atau kerosakan kepada kenderaan yang mungkin berlaku.\n\n" +
-//                "4. Had masa membuka apitan tayar adalah dari 9.00 pagi hingga 9.30 malam sahaja.\"\n")
-
-        // 8️⃣ Print & close
-        tsc.printlabel(1, 1)
-//        tsc.closeport(2000)
-
-        // 5️⃣ (Optional) Clear again after print
-        tsc.sendcommand("CLS\r\n")
-    } catch (e: Exception) {
-        Log.e("TSC_SDK", "Print failed: ${e.message}", e)
-    } finally {
-        try {
-            tsc.closeport(2000)
-        } catch (e: Exception) {
-            Log.e("TSC_SDK", "Closeport failed", e)
-        }
-    }
+) {
+    printBphNotisCajWithSdkV2(
+        mac = mac,
+        context = context,
+        gambarBitmap = null,
+        noSiri = noSiri,
+        tarikh = tarikh,
+        masa = masa,
+        noKenderaan = noKenderaan,
+        kadarCaj = kadarCaj,
+        jenisKenderaan = jenisKenderaan,
+        lokasi = lokasi,
+        pegawai = pegawai,
+        savedId = "-"
+    )
 }
 
-fun convertToMonoBmp(original: Bitmap): Bitmap {
-    val width = original.width
-    val height = original.height
-    val monoBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(monoBitmap)
-    val paint = Paint()
-    val colorMatrix = ColorMatrix()
-    colorMatrix.setSaturation(0f) // grayscale
-    val filter = ColorMatrixColorFilter(colorMatrix)
-    paint.colorFilter = filter
-    canvas.drawBitmap(original, 0f, 0f, paint)
-
-    // Dithering: convert to pure black/white
-    for (y in 0 until height) {
-        for (x in 0 until width) {
-            val pixel = monoBitmap.getPixel(x, y)
-            val gray = Color.red(pixel)
-            monoBitmap.setPixel(x, y, if (gray < 160) Color.BLACK else Color.WHITE)
-        }
-    }
-    return monoBitmap
+private fun dotsToMm(dots: Int): Int {
+    return ceil(dots / 8.0).toInt()
 }
 
-fun convertToPrinterMono(context: Context, bitmap: Bitmap, targetWidth: Int = 384): File {
-    val ratio = targetWidth / bitmap.width.toFloat()
-    val height = (bitmap.height * ratio).toInt()
-    val resized = Bitmap.createScaledBitmap(bitmap, targetWidth, height, true)
+private fun calculateBphTemplateNoteEndY(): Int {
+    var y = 200
 
-    // Convert to grayscale → black & white
-    val gray = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(gray)
-    val paint = Paint().apply {
-        colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(0f) })
-    }
-    canvas.drawBitmap(resized, 0f, 0f, paint)
+    // Header tidak ubah y secara direct
 
-    for (y in 0 until height) {
-        for (x in 0 until targetWidth) {
-            val pixel = gray.getPixel(x, y)
-            val brightness = Color.red(pixel)
-            gray.setPixel(x, y, if (brightness < 160) Color.BLACK else Color.WHITE)
-        }
+    // Detail table
+    y += 250
+    y += 15
+
+    // 6 rows
+    repeat(6) {
+        y += 28
     }
 
-    // Save as temp BMP for printer
-    val tempFile = File(context.cacheDir, "uploaded_photo.bmp")
-    FileOutputStream(tempFile).use { out ->
-        gray.compress(Bitmap.CompressFormat.PNG, 100, out)
+    y += 25
+
+    // Payment title box
+    y += 50
+    y += 15
+
+    // TUNAI / DALAM TALIAN
+    y += 35
+
+    // Address box
+    y += 10
+    y += 95
+
+    // Time box
+    y += 10
+    y += 80
+
+    // URL box
+    y += 10
+
+    // Notes section
+    y += 45
+    y += 30
+
+    // Notes lines.
+    // First note line printed, then 16 increments of 20 based on current template.
+    repeat(16) {
+        y += 20
     }
-    return tempFile
+
+    return y
 }
 
-fun saveAsBmp(bitmap: Bitmap, file: File) {
-    val width = bitmap.width
-    val height = bitmap.height
-
-    // Each row must be padded to a multiple of 4 bytes
-    val bytesPerRow = ((width + 31) / 32) * 4
-    val pixelArraySize = bytesPerRow * height
-    val fileHeaderSize = 14
-    val dibHeaderSize = 40
-    val colorTableSize = 8  // black + white
-    val offsetToPixels = fileHeaderSize + dibHeaderSize + colorTableSize
-    val fileSize = offsetToPixels + pixelArraySize
-
-    val buffer = ByteBuffer.allocate(fileSize)
-    buffer.order(ByteOrder.LITTLE_ENDIAN)
-
-    // === BMP FILE HEADER ===
-    buffer.put('B'.code.toByte())
-    buffer.put('M'.code.toByte())
-    buffer.putInt(fileSize)
-    buffer.putShort(0)
-    buffer.putShort(0)
-    buffer.putInt(offsetToPixels)
-
-    // === DIB HEADER ===
-    buffer.putInt(dibHeaderSize)
-    buffer.putInt(width)
-    buffer.putInt(height)
-    buffer.putShort(1) // planes
-    buffer.putShort(1) // bits per pixel
-    buffer.putInt(0)   // no compression
-    buffer.putInt(pixelArraySize)
-    buffer.putInt(0) // x pixels per meter
-    buffer.putInt(0) // y pixels per meter
-    buffer.putInt(2) // colors used
-    buffer.putInt(0) // important colors
-
-    // === COLOR TABLE ===
-    buffer.put(0x00) // black
-    buffer.put(0x00)
-    buffer.put(0x00)
-    buffer.put(0x00)
-    buffer.put(0xFF.toByte()) // white
-    buffer.put(0xFF.toByte())
-    buffer.put(0xFF.toByte())
-    buffer.put(0x00)
-
-    // === PIXEL DATA ===
-    val row = ByteArray(bytesPerRow)
-    for (y in height - 1 downTo 0) {
-        row.fill(0)
-        var bitIndex = 0
-        var byteIndex = 0
-        for (x in 0 until width) {
-            val color = bitmap.getPixel(x, y)
-            val bit = if (Color.red(color) < 128) 1 else 0
-            row[byteIndex] = (row[byteIndex].toInt() or (bit shl (7 - bitIndex))).toByte()
-            bitIndex++
-            if (bitIndex == 8) {
-                bitIndex = 0
-                byteIndex++
-            }
-        }
-        buffer.put(row)
-    }
-
-    FileOutputStream(file).use { it.write(buffer.array()) }
-}
-
-fun convertToMonoBmpResized(
+fun convertToDitheredMonoBitmapFitReceiptWidth(
     original: Bitmap,
-    maxWidth: Int = 384,          // adjust to your printer head width if needed
-    maxHeight: Int = 384,         // or larger if you want
-    maxBytes: Int = 1_000_000     // ~1 MB in memory
+    targetWidth: Int = 500,
+    maxAbsoluteHeight: Int = 1100,
+    cropToLandscape: Boolean = true,
+    brightness: Int = 45,
+    contrast: Float = 1.25f,
+    threshold: Float = 160f
 ): Bitmap {
-    val origWidth = original.width
-    val origHeight = original.height
-
-    if (origWidth <= 0 || origHeight <= 0) {
-        throw IllegalArgumentException("Invalid bitmap size: $origWidth x $origHeight")
-    }
-
-    // 1️⃣ Base scale from width/height constraints
-    var scale = 1f
-    val scaleW = maxWidth.toFloat() / origWidth.toFloat()
-    val scaleH = maxHeight.toFloat() / origHeight.toFloat()
-    scale = minOf(1f, scaleW, scaleH)   // don't upscale; only shrink
-
-    // 2️⃣ Extra scale from maxBytes (in-memory bitmap size)
-    val maxPixels = maxBytes / 4       // ARGB_8888 = 4 bytes per pixel
-    val origPixels = origWidth.toLong() * origHeight.toLong()
-    if (origPixels > maxPixels) {
-        val scaleByBytes = kotlin.math.sqrt(maxPixels.toDouble() / origPixels.toDouble()).toFloat()
-        scale = minOf(scale, scaleByBytes)
-    }
-
-    // 3️⃣ Actually scale the bitmap if needed
-    val scaledBitmap = if (scale < 1f) {
-        val newWidth = (origWidth * scale).toInt().coerceAtLeast(1)
-        val newHeight = (origHeight * scale).toInt().coerceAtLeast(1)
-        Bitmap.createScaledBitmap(original, newWidth, newHeight, true)
+    val source = if (cropToLandscape) {
+        centerCropBitmap(original, targetAspectRatio = 4f / 3f)
     } else {
         original
     }
 
-    val width = scaledBitmap.width
-    val height = scaledBitmap.height
+    val origWidth = source.width
+    val origHeight = source.height
 
-    // 4️⃣ Create target bitmap and draw grayscale
-    val monoBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(monoBitmap)
-    val paint = Paint()
-    val colorMatrix = ColorMatrix().apply {
-        setSaturation(0f) // grayscale
+    require(origWidth > 0 && origHeight > 0) {
+        "Invalid bitmap size: $origWidth x $origHeight"
     }
-    paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-    canvas.drawBitmap(scaledBitmap, 0f, 0f, paint)
 
-    // 5️⃣ Threshold to pure black & white
+    var scale = targetWidth.toFloat() / origWidth.toFloat()
+    var newWidth = targetWidth
+    var newHeight = (origHeight * scale).toInt().coerceAtLeast(1)
+
+    if (newHeight > maxAbsoluteHeight) {
+        scale = maxAbsoluteHeight.toFloat() / origHeight.toFloat()
+        newHeight = maxAbsoluteHeight
+        newWidth = (origWidth * scale).toInt().coerceAtLeast(1)
+    }
+
+    val resized = Bitmap.createScaledBitmap(
+        source,
+        newWidth,
+        newHeight,
+        true
+    )
+
+    val width = resized.width
+    val height = resized.height
+
+    Log.d(
+        "PRINT_IMG",
+        "source=${original.width}x${original.height}, cropped=${source.width}x${source.height}, resized=${width}x${height}"
+    )
+
+    val gray = Array(height) { FloatArray(width) }
+
     for (y in 0 until height) {
         for (x in 0 until width) {
-            val pixel = monoBitmap.getPixel(x, y)
-            val gray = Color.red(pixel) // after grayscale, R=G=B
-            monoBitmap.setPixel(x, y, if (gray < 160) Color.BLACK else Color.WHITE)
+            val p = resized.getPixel(x, y)
+
+            val r = Color.red(p)
+            val g = Color.green(p)
+            val b = Color.blue(p)
+
+            var luminance = (0.299f * r + 0.587f * g + 0.114f * b)
+            luminance = ((luminance - 128f) * contrast) + 128f + brightness
+
+            gray[y][x] = luminance.coerceIn(0f, 255f)
         }
     }
 
-    return monoBitmap
+    val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+    for (y in 0 until height) {
+        for (x in 0 until width) {
+            val oldPixel = gray[y][x]
+            val newPixel = if (oldPixel < threshold) 0f else 255f
+            val error = oldPixel - newPixel
+
+            out.setPixel(
+                x,
+                y,
+                if (newPixel == 0f) Color.BLACK else Color.WHITE
+            )
+
+            if (x + 1 < width) {
+                gray[y][x + 1] =
+                    (gray[y][x + 1] + error * 7f / 16f).coerceIn(0f, 255f)
+            }
+
+            if (y + 1 < height) {
+                if (x > 0) {
+                    gray[y + 1][x - 1] =
+                        (gray[y + 1][x - 1] + error * 3f / 16f).coerceIn(0f, 255f)
+                }
+
+                gray[y + 1][x] =
+                    (gray[y + 1][x] + error * 5f / 16f).coerceIn(0f, 255f)
+
+                if (x + 1 < width) {
+                    gray[y + 1][x + 1] =
+                        (gray[y + 1][x + 1] + error * 1f / 16f).coerceIn(0f, 255f)
+                }
+            }
+        }
+    }
+
+    if (resized != source && !resized.isRecycled) {
+        resized.recycle()
+    }
+
+    if (source != original && !source.isRecycled) {
+        source.recycle()
+    }
+
+    return out
 }
 
-fun bitmapToJpegUnder1Mb(
-    bitmap: Bitmap,
-    maxBytes: Int = 1_000_000,
-    minQuality: Int = 40
-): ByteArray {
-    var quality = 100
-    val stream = java.io.ByteArrayOutputStream()
+fun centerCropBitmap(
+    original: Bitmap,
+    targetAspectRatio: Float = 4f / 3f
+): Bitmap {
+    val width = original.width
+    val height = original.height
 
-    do {
-        stream.reset()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
-        quality -= 5
-    } while (stream.size() > maxBytes && quality >= minQuality)
+    if (width <= 0 || height <= 0) {
+        throw IllegalArgumentException("Invalid bitmap size: $width x $height")
+    }
 
-    return stream.toByteArray()
+    val currentAspectRatio = width.toFloat() / height.toFloat()
+
+    return if (currentAspectRatio > targetAspectRatio) {
+        // terlalu wide, crop kiri kanan
+        val newWidth = (height * targetAspectRatio).toInt().coerceAtMost(width)
+        val xOffset = ((width - newWidth) / 2).coerceAtLeast(0)
+
+        Bitmap.createBitmap(
+            original,
+            xOffset,
+            0,
+            newWidth,
+            height
+        )
+    } else {
+        // terlalu tinggi / portrait, crop atas bawah
+        val newHeight = (width / targetAspectRatio).toInt().coerceAtMost(height)
+        val yOffset = ((height - newHeight) / 2).coerceAtLeast(0)
+
+        Bitmap.createBitmap(
+            original,
+            0,
+            yOffset,
+            width,
+            newHeight
+        )
+    }
+}
+
+private fun openTscPortWithRetry(
+    tsc: TSCActivity,
+    mac: String,
+    retryCount: Int = 1
+) {
+    var lastError: Throwable? = null
+
+    repeat(retryCount + 1) { attempt ->
+        try {
+            Log.d("TSC_SDK", "Opening port attempt ${attempt + 1}")
+
+            tsc.openport(mac)
+            Thread.sleep(700)
+
+            // Test command. Kalau OutputStream null, dia akan crash di sini.
+            tsc.sendcommand("\r\n")
+
+            Log.d("TSC_SDK", "Printer port ready")
+            return
+
+        } catch (e: Throwable) {
+            lastError = e
+            Log.e("TSC_SDK", "Open port attempt ${attempt + 1} failed", e)
+
+            try {
+                tsc.closeport(1000)
+            } catch (_: Throwable) {
+            }
+
+            Thread.sleep(1000)
+        }
+    }
+
+    throw IllegalStateException(
+        "Printer tidak bersedia / Bluetooth belum connect betul",
+        lastError
+    )
+}
+
+private fun safeTscCommand(
+    tsc: TSCActivity,
+    command: String
+) {
+    try {
+        tsc.sendcommand(command)
+    } catch (e: NullPointerException) {
+        throw IllegalStateException(
+            "Sambungan printer terputus. Sila hidupkan printer / reconnect Bluetooth dan cuba semula.",
+            e
+        )
+    }
 }

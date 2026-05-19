@@ -12,18 +12,23 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
+
     @POST("clamping")
     suspend fun createClamping(
         @Body request: ClampingRequestForm,
         @Query("authId") authId: String? = null
-    ): retrofit2.Response<ClampingResponseForm>
+    ): Response<ClampingResponseForm>
 
     @GET("clamping")
     suspend fun getKompaunList(
         @Query("status") status: String,
         @Query("pageNo") pageNo: Int,
         @Query("pageSize") pageSize: Int,
-        @Query("authId") authId: String
+        @Query("authId") authId: String,
+        @Query("noKenderaan") noKenderaan: String? = null,
+        @Query("noKompaun") noKompaun: String? = null,
+        @Query("sortBy") sortBy: String = "tarikhKompaun",
+        @Query("sortOrder") sortOrder: String = "desc"
     ): Response<KompaunListResponse>
 
     @PUT("clamping/{id}/batal-kompaun")
@@ -40,4 +45,11 @@ interface ApiService {
         @Query("authId") authId: String
     ): Response<ClampingResponseForm>
 
+    @PUT("clamping/{id}/update-bayaran-kompaun-manual")
+    suspend fun updateBayaranKompaunManual(
+        @Path("id") id: String,
+        @Body body: ClampingRequestForm,
+        @Query("noResit") noResit: String,
+        @Query("authId") authId: String
+    ): Response<ClampingResponseForm>
 }

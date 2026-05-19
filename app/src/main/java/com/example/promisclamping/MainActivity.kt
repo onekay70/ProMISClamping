@@ -475,6 +475,8 @@ fun DaftarKompaunScreen() {
                 AnimatedVisibility(visible = !isSaving && savedId != null) {
                     OutlinedButton(
                         onClick = {
+                            if (isPrinting) return@OutlinedButton
+
                             scope.launch {
                                 isPrinting = true
                                 try {
@@ -487,6 +489,10 @@ fun DaftarKompaunScreen() {
 
                                     if (missing) {
                                         launcher.launch(btPermissions)
+                                        snackbarHostState.showSnackbar(
+                                            "Sila benarkan Bluetooth dahulu, kemudian tekan cetak semula"
+                                        )
+                                        return@launch
                                     } else {
                                         if (gambarBitmap != null) {
                                             printBphNotisCajWithSdkV2(

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,13 +29,6 @@ import com.example.promisclamping.util.toFilePart
 import kotlinx.coroutines.launch
 import com.example.promisclamping.Config.DEV_MAC_ADD
 import com.example.promisclamping.print.printBphNotisCajWithSdkV2
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +42,13 @@ import coil.request.SuccessResult
 import android.bluetooth.BluetoothManager
 import android.widget.Toast
 import android.content.Context
+import com.example.promisclamping.ui.theme.ActionBackGrey
+import com.example.promisclamping.ui.theme.ActionCancelRed
+import com.example.promisclamping.ui.theme.ActionDisabledBg
+import com.example.promisclamping.ui.theme.ActionDisabledText
+import com.example.promisclamping.ui.theme.ActionDoneBlue
+import com.example.promisclamping.ui.theme.ActionPayGreen
+import com.example.promisclamping.ui.theme.ActionPrintPurple
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +66,12 @@ fun KompaunDetailScreen(
     var isBatal by remember { mutableStateOf(false) }
     var isFormLocked by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var showManualPaymentDialog by remember { mutableStateOf(false) }
+    var currentStatus by remember { mutableStateOf(kompaun.status ?: "") }
+    var currentNoResit by remember { mutableStateOf("") }
+    var noResitManual by remember { mutableStateOf("") }
+    var isSavingPayment by remember { mutableStateOf(false) }
+    var paymentError by remember { mutableStateOf<String?>(null) }
 
     var extraImageUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -105,6 +110,11 @@ fun KompaunDetailScreen(
                 "Kadar Kompaun",
                 kompaun.kadarKompaun?.toString() ?: "-"
             )
+            ReadOnlyField("Status", currentStatus.ifBlank { "-" })
+
+            if (currentNoResit.isNotBlank()) {
+                ReadOnlyField("No. Resit", currentNoResit)
+            }
 
             Spacer(Modifier.height(16.dp))
             // Paparkan Gambar Clamp 1 jika ada
@@ -205,6 +215,34 @@ fun KompaunDetailScreen(
                 }
             }
 
+            val bolehBayarManual = currentStatus.equals("BARU", ignoreCase = true)
+
+            Button(
+                onClick = {
+                    paymentError = null
+                    noResitManual = ""
+                    showManualPaymentDialog = true
+                },
+                enabled = bolehBayarManual && !isSavingPayment,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ActionPayGreen,
+                    contentColor = Color.White,
+                    disabledContainerColor = ActionDisabledBg,
+                    disabledContentColor = ActionDisabledText
+                )
+            ) {
+                Text(
+                    if (bolehBayarManual)
+                        "Kemaskini Bayaran Manual"
+                    else
+                        "Bayaran Manual Telah Dikemaskini"
+                )
+            }
+
+            val bolehSelesai = currentStatus.equals("BAYAR", ignoreCase = true)
+                    || currentStatus.equals("BARU", ignoreCase = true)
+
             // --- Simpan Button ---
             Button(
                 onClick = {
@@ -263,24 +301,33 @@ fun KompaunDetailScreen(
                             val resp = api.selesaiKompaun(kompaun.id ?: "", requestForm, authId);
 
                             if (resp.isSuccessful) {
-                                // ✅ turn off loading *before* snackbar so UI unlocks immediately
+                                currentStatus = "SELESAI"
                                 isSaving = false
-                                snackbarHostState.showSnackbar("Berjaya dikemaskini.")
+                                isFormLocked = true
+                                snackbarHostState.showSnackbar("Kompaun berjaya diselesaikan.")
 //                            onBack()
                             } else {
                                 isSaving = false
+                                isFormLocked = false
                                 val errText = resp.errorBody()?.string().orEmpty()
                                 snackbarHostState.showSnackbar("Gagal (${resp.code()}): ${errText.ifBlank { "Ralat pelayan" }}")
                             }
 
                         } catch (t: Throwable) {
                             isSaving = false
+                            isFormLocked = false
                             snackbarHostState.showSnackbar("Ralat: ${t.message ?: t.javaClass.simpleName}")
                         }
                     }
                 },
-                enabled = !isSaving && !isFormLocked,
-                modifier = Modifier.fillMaxWidth()
+                enabled = bolehSelesai && !isSaving && !isFormLocked,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = ActionDoneBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = ActionDisabledBg,
+                    disabledContentColor = ActionDisabledText
+                )
             ) {
                 Text(if (isSaving) "Menyimpan..." else "Selesai")
             }
@@ -288,8 +335,10 @@ fun KompaunDetailScreen(
             // --- Simpan Button ---
             Button(
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Warning,
-                    contentColor = Color.Black
+                    containerColor = ActionCancelRed,
+                    contentColor = Color.White,
+                    disabledContainerColor = ActionDisabledBg,
+                    disabledContentColor = ActionDisabledText
                 ),
                 onClick = {
                     scope.launch {
@@ -433,7 +482,7 @@ fun KompaunDetailScreen(
                 enabled = !isPrinting,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = ActionPrintPurple,
                     contentColor = Color.White
                 )
             ) {
@@ -445,7 +494,7 @@ fun KompaunDetailScreen(
                 onClick = onBack,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = SecondaryBlue,
+                    containerColor = ActionBackGrey,
                     contentColor = Color.White
                 ),
             ) {
@@ -453,6 +502,126 @@ fun KompaunDetailScreen(
             }
 
             Spacer(Modifier.height(30.dp))
+        }
+
+        if (showManualPaymentDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isSavingPayment) {
+                        showManualPaymentDialog = false
+                    }
+                },
+                title = {
+                    Text("Bayaran Manual")
+                },
+                text = {
+                    Column {
+                        Text("Masukkan no. resit yang telah dibayar oleh pemilik kenderaan.")
+
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = noResitManual,
+                            onValueChange = {
+                                noResitManual = it.uppercase()
+                                paymentError = null
+                            },
+                            singleLine = true,
+                            label = { Text("No. Resit") },
+                            placeholder = { Text("Contoh: RCP123456") },
+                            enabled = !isSavingPayment,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (!paymentError.isNullOrBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = paymentError ?: "",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        if (isSavingPayment) {
+                            Spacer(Modifier.height(12.dp))
+                            CircularProgressIndicator()
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !isSavingPayment && noResitManual.isNotBlank(),
+                        onClick = {
+                            scope.launch {
+                                val authId = tokenStore.userId ?: ""
+
+                                if (authId.isBlank()) {
+                                    paymentError = "ID pengguna tiada. Sila log masuk semula."
+                                    return@launch
+                                }
+
+                                if (kompaun.id.isNullOrBlank()) {
+                                    paymentError = "ID kompaun tidak dijumpai."
+                                    return@launch
+                                }
+
+                                isSavingPayment = true
+                                paymentError = null
+
+                                try {
+                                    val requestForm = ClampingRequestForm(
+                                        id = kompaun.id,
+                                        noKenderaan = kompaun.noKenderaan,
+                                        jenisKenderaan = null,
+                                        blok = null,
+                                        tempat = null,
+                                        lokasi = null,
+                                        status = null,
+                                        catatanBatal = null,
+                                        dirClamp1 = null,
+                                        dirClamp2 = null
+                                    )
+
+                                    val resp = ApiClient.kompaun(ctx).updateBayaranKompaunManual(
+                                        id = kompaun.id ?: "",
+                                        body = requestForm,
+                                        noResit = noResitManual.trim(),
+                                        authId = authId
+                                    )
+
+                                    if (resp.isSuccessful) {
+                                        currentStatus = "BAYAR"
+                                        currentNoResit = noResitManual.trim()
+
+                                        showManualPaymentDialog = false
+                                        noResitManual = ""
+
+                                        snackbarHostState.showSnackbar(
+                                            "Bayaran berjaya dikemaskini. Sila tekan Selesai selepas apitan dibuka."
+                                        )
+                                    }
+                                } catch (t: Throwable) {
+                                    paymentError = t.message ?: t.javaClass.simpleName
+                                } finally {
+                                    isSavingPayment = false
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (isSavingPayment) "Menyimpan..." else "Simpan")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !isSavingPayment,
+                        onClick = {
+                            showManualPaymentDialog = false
+                        }
+                    ) {
+                        Text("Batal")
+                    }
+                }
+            )
         }
     }
 }
