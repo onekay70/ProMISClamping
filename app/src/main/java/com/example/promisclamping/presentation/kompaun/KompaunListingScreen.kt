@@ -1,23 +1,13 @@
 package com.example.promisclamping.presentation.kompaun
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.promisclamping.data.local.TokenStore
 import com.example.promisclamping.models.KompaunItem
 import com.example.promisclamping.network.ApiClient
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
 
 @Composable
 fun KompaunListingScreen(
@@ -36,10 +26,10 @@ fun KompaunListingScreen(
 
     var pageNo by remember { mutableStateOf(1) }
     var hasMore by remember { mutableStateOf(false) }
+    var hasSearched by remember { mutableStateOf(false) }
 
     var searchPlate by remember { mutableStateOf("") }
     var searchNoKompaun by remember { mutableStateOf("") }
-    var hasSearched by remember { mutableStateOf(false) }
 
     var selectedKompaun by remember { mutableStateOf<KompaunItem?>(null) }
 
@@ -65,10 +55,12 @@ fun KompaunListingScreen(
         error = null
 
         try {
+            val pageSize = if (isSearch) searchPageSize else defaultPageSize
+
             val resp = ApiClient.kompaun(ctx).getKompaunList(
                 status = "BARU,BAYAR",
                 pageNo = page,
-                pageSize = if (isSearch) searchPageSize else defaultPageSize,
+                pageSize = pageSize,
                 authId = authId,
                 noKenderaan = if (isSearch) plate.ifBlank { null } else null,
                 noKompaun = if (isSearch) noKompaun.ifBlank { null } else null,
@@ -77,11 +69,10 @@ fun KompaunListingScreen(
             )
 
             if (resp.isSuccessful) {
-                val body = resp.body()
-                val newItems = body?.data ?: emptyList()
+                val newItems = resp.body()?.data ?: emptyList()
 
                 items = if (append) items + newItems else newItems
-                hasMore = if (isSearch) newItems.size >= searchPageSize else false
+                hasMore = if (isSearch) newItems.size >= pageSize else false
             } else {
                 error = "Gagal memuat data (${resp.code()})"
                 hasMore = false
@@ -115,7 +106,7 @@ fun KompaunListingScreen(
         }
     }
 
-    fun reloadCurrentSearch() {
+    fun reloadCurrentList() {
         scope.launch {
             pageNo = 1
             loadPage(page = 1, append = false, isSearch = hasSearched)
@@ -123,8 +114,6 @@ fun KompaunListingScreen(
     }
 
     LaunchedEffect(Unit) {
-        pageNo = 1
-        hasSearched = false
         loadPage(page = 1, append = false, isSearch = false)
     }
 
@@ -133,7 +122,7 @@ fun KompaunListingScreen(
             kompaun = selectedKompaun!!,
             onBack = {
                 selectedKompaun = null
-                reloadCurrentSearch()
+                reloadCurrentList()
             }
         )
     } else {
@@ -147,12 +136,8 @@ fun KompaunListingScreen(
             onSearchPlateChange = { searchPlate = it },
             searchNoKompaun = searchNoKompaun,
             onSearchNoKompaunChange = { searchNoKompaun = it },
-            onSearchClick = {
-                searchFromStart()
-            },
-            onClearSearch = {
-                clearSearch()
-            },
+            onSearchClick = { searchFromStart() },
+            onClearSearch = { clearSearch() },
             showSearch = true,
             onItemClick = { selectedKompaun = it },
             canLoadMore = hasMore,

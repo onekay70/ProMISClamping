@@ -100,7 +100,7 @@ fun DecoratedLoginContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PageBackground)
+            .background(Color(0xFF041435))
     ) {
 
         if (isLandscape) {

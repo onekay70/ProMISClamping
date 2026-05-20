@@ -4,24 +4,24 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.promisclamping.models.KompaunItem
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.Color
+import com.example.promisclamping.ui.theme.NavyHeader
+import com.example.promisclamping.ui.theme.SecondaryBlue
+import com.example.promisclamping.ui.theme.TextMuted
 
 data class KompaunListUiState(
     val isLoading: Boolean = false,
@@ -50,99 +50,30 @@ fun KompaunListContent(
     canLoadMore: Boolean = false
 ) {
     Column(
-        modifier = modifier.padding(16.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleLarge,
+            color = NavyHeader
         )
 
+        Spacer(Modifier.height(10.dp))
+
         if (showSearch) {
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = searchPlate,
-                onValueChange = { value ->
-                    onSearchPlateChange(value.uppercase())
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Cari No. Kenderaan") },
-                placeholder = { Text("Contoh: VAB1234") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    if (searchPlate.isNotBlank()) {
-                        IconButton(onClick = onClearSearch) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Kosongkan carian"
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Search
-                ),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        onSearchClick()
-                    }
-                )
+            SearchKompaunCard(
+                searchPlate = searchPlate,
+                onSearchPlateChange = onSearchPlateChange,
+                searchNoKompaun = searchNoKompaun,
+                onSearchNoKompaunChange = onSearchNoKompaunChange,
+                onSearchClick = onSearchClick,
+                onClearSearch = onClearSearch,
+                isLoading = isLoading
             )
 
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = searchNoKompaun,
-                onValueChange = { value ->
-                    onSearchNoKompaunChange(value.uppercase())
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Cari No. Kompaun") },
-                placeholder = { Text("Contoh: KMP202600001") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null
-                    )
-                },
-                trailingIcon = {
-                    if (searchNoKompaun.isNotBlank()) {
-                        IconButton(onClick = { onSearchNoKompaunChange("") }) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Kosongkan no kompaun"
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Search
-                ),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        onSearchClick()
-                    }
-                )
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Button(
-                onClick = onSearchClick,
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isLoading) "Mencari..." else "Cari Kompaun Belum Bayar")
-            }
-
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
         }
 
         when {
@@ -158,19 +89,27 @@ fun KompaunListContent(
             }
 
             error != null && items.isEmpty() -> {
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error
+                EmptyInfoCard(
+                    title = "Tiada rekod dipaparkan",
+                    message = error
                 )
             }
 
             items.isEmpty() -> {
-                Text("Tiada rekod kompaun belum bayar.")
+                EmptyInfoCard(
+                    title = "Tiada rekod",
+                    message = if (showSearch) {
+                        "Cuba cari menggunakan No. Kenderaan atau No. Kompaun."
+                    } else {
+                        "Tiada rekod kompaun dijumpai."
+                    }
+                )
             }
 
             else -> {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 120.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(items) { item ->
@@ -182,28 +121,162 @@ fun KompaunListContent(
 
                     if (canLoadMore && onLoadMore != null) {
                         item {
-                            Spacer(Modifier.height(8.dp))
                             Button(
                                 onClick = onLoadMore,
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !isLoading
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SecondaryBlue,
+                                    contentColor = Color.White
+                                )
                             ) {
                                 Text(if (isLoading) "Memuat..." else "Muat Lagi")
                             }
-                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+
+                    if (error != null) {
+                        item {
+                            Text(
+                                text = error,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
                         }
                     }
                 }
+            }
+        }
+    }
+}
 
-                if (error != null && items.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
+@Composable
+private fun SearchKompaunCard(
+    searchPlate: String,
+    onSearchPlateChange: (String) -> Unit,
+    searchNoKompaun: String,
+    onSearchNoKompaunChange: (String) -> Unit,
+    onSearchClick: () -> Unit,
+    onClearSearch: () -> Unit,
+    isLoading: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Carian Kompaun",
+                style = MaterialTheme.typography.titleMedium,
+                color = NavyHeader
+            )
+
+            Text(
+                text = "Cari berdasarkan No. Kenderaan atau No. Kompaun.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted
+            )
+
+            OutlinedTextField(
+                value = searchPlate,
+                onValueChange = { value -> onSearchPlateChange(value.uppercase()) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("No. Kenderaan") },
+                placeholder = { Text("Contoh: VAB1234") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchPlate.isNotBlank()) {
+                        IconButton(onClick = { onSearchPlateChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Kosongkan No. Kenderaan")
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearchClick() })
+            )
+
+            OutlinedTextField(
+                value = searchNoKompaun,
+                onValueChange = { value -> onSearchNoKompaunChange(value.uppercase()) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("No. Kompaun") },
+                placeholder = { Text("Contoh: KMP202600001") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchNoKompaun.isNotBlank()) {
+                        IconButton(onClick = { onSearchNoKompaunChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Kosongkan No. Kompaun")
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearchClick() })
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedButton(
+                    onClick = onClearSearch,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    enabled = !isLoading
+                ) {
+                    Text("Reset")
+                }
+
+                Button(
+                    onClick = onSearchClick,
+                    enabled = !isLoading,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SecondaryBlue,
+                        contentColor = Color.White
                     )
+                ) {
+                    Text(if (isLoading) "Mencari..." else "Cari")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptyInfoCard(
+    title: String,
+    message: String?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = NavyHeader
+            )
+            Text(
+                text = message ?: "-",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted
+            )
         }
     }
 }
@@ -234,13 +307,9 @@ fun KompaunListCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 3.dp
-        )
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(
             modifier = Modifier
@@ -252,9 +321,7 @@ fun KompaunListCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.noKenderaan ?: "-",
                         style = MaterialTheme.typography.titleLarge,
@@ -268,7 +335,7 @@ fun KompaunListCard(
                     Text(
                         text = item.noKompaun ?: "-",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF6B7280),
+                        color = TextMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -323,7 +390,7 @@ fun KompaunListCard(
             Text(
                 text = "No. KP: ${item.idPemilik ?: "-"}",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF6B7280),
+                color = TextMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -333,7 +400,7 @@ fun KompaunListCard(
             Text(
                 text = "Tekan untuk lihat butiran",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF2563EB)
+                color = SecondaryBlue
             )
         }
     }
@@ -356,7 +423,7 @@ private fun InfoMiniBox(
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF6B7280)
+                color = TextMuted
             )
             Spacer(Modifier.height(2.dp))
             Text(

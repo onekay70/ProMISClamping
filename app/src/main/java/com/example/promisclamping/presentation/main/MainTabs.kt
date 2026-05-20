@@ -1,21 +1,17 @@
 package com.example.promisclamping.presentation.main
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.promisclamping.DaftarKompaunScreen
 import com.example.promisclamping.R
@@ -23,11 +19,13 @@ import com.example.promisclamping.presentation.kompaun.KompaunHistoryScreen
 import com.example.promisclamping.presentation.kompaun.KompaunListingScreen
 import com.example.promisclamping.ui.common.PromisFooter
 import com.example.promisclamping.ui.theme.NavyHeader
+import com.example.promisclamping.ui.theme.NavyHeaderDark
+import androidx.compose.foundation.layout.statusBarsPadding
 
 enum class MainTab(val title: String) {
-    KOMPAUN("Daftar Kompaun"),
-    KOMPAUN_LISTING("Senarai Kompaun"),
-    KOMPAUN_HISTORY("Sejarah Kompaun")
+    KOMPAUN("Daftar"),
+    KOMPAUN_LISTING("Senarai"),
+    KOMPAUN_HISTORY("Sejarah")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,13 +42,41 @@ fun MainTabs(
                     title = "ProMIS Clamping",
                     onLogoutClick = onLogout
                 )
-                TabRow(selectedTabIndex = selectedTab.ordinal) {
-                    MainTab.values().forEach { tab ->
-                        Tab(
-                            selected = tab == selectedTab,
-                            onClick = { selectedTab = tab },
-                            text = { Text(tab.title) }
-                        )
+
+                Surface(
+                    color = NavyHeader,
+                    shadowElevation = 6.dp
+                ) {
+                    TabRow(
+                        selectedTabIndex = selectedTab.ordinal,
+                        containerColor = NavyHeader,
+                        contentColor = Color.White,
+                        indicator = {},
+                        divider = {}
+                    ) {
+                        MainTab.values().forEach { tab ->
+                            val selected = tab == selectedTab
+
+                            Tab(
+                                selected = selected,
+                                onClick = { selectedTab = tab },
+                                text = {
+                                    Surface(
+                                        color = if (selected) Color.White else Color.Transparent,
+                                        shape = RoundedCornerShape(999.dp),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = tab.title,
+                                            color = if (selected) NavyHeader else Color(0xFFDDE7FF),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -78,60 +104,45 @@ fun MainTabs(
 }
 
 @Composable
-private fun HistoryPlaceholder(modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Text("Sejarah (akan diisi dengan data offline / senarai kompaun)")
-    }
-}
-
-@Composable
-private fun SettingsPlaceholder(modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Text("Tetapan (contoh: pilihan server, info pengguna)")
-    }
-}
-
-@Composable
 fun PromisTopBar(
     title: String,
-    onMenuClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    onLogoutClick: () -> Unit
 ) {
     Surface(
-        color = NavyHeader,
+        color = NavyHeaderDark,
         shadowElevation = 4.dp
     ) {
-        Row(
+        androidx.compose.foundation.layout.Row(
             modifier = Modifier
-                .padding(WindowInsets.statusBars.asPaddingValues())   // 👈 FIX HERE
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 14.dp)
+                .padding(top = 32.dp)
+                .padding(bottom = 12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
-            // Left: small app icon or menu
-            IconButton(onClick = onMenuClick) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_promis_home), // export from favicon or your SVG
-                    contentDescription = "Utama",
-                    tint = Color.White
-                )
-            }
+            Icon(
+                painter = painterResource(id = R.drawable.ic_promis_home),
+                contentDescription = "Logo",
+                tint = Color.Unspecified,
+                modifier = Modifier
+                    .padding(end = 10.dp)
+                    .size(32.dp)
+            )
 
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White
+                color = Color.White,
+                modifier = Modifier.weight(1f)
             )
 
-            // Right: simple logout / profile
-            TextButton(onClick = onLogoutClick) {
-                Text(
-                    text = "Log Keluar",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFFFCDD2) // slightly red to match web
+            TextButton(
+                onClick = onLogoutClick,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color.White
                 )
+            ) {
+                Text("Log Keluar")
             }
         }
     }

@@ -6,13 +6,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val PromisColorScheme = lightColorScheme(
-    primary = PrimaryGreen,
+    primary = SecondaryBlue,
     onPrimary = Color.White,
-    primaryContainer = PrimaryGreen.copy(alpha = 0.12f),
-    onPrimaryContainer = PrimaryGreen,
+    primaryContainer = ProMISBlueSoft,
+    onPrimaryContainer = NavyHeader,
 
-    secondary = SecondaryBlue,
+    secondary = PrimaryGreen,
     onSecondary = Color.White,
+    secondaryContainer = PrimaryGreen.copy(alpha = 0.12f),
+    onSecondaryContainer = PrimaryGreen,
 
     background = PageBackground,
     onBackground = TextDark,

@@ -96,6 +96,8 @@ import android.os.Build
 import androidx.compose.runtime.LaunchedEffect
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 
 class MainActivity : ComponentActivity() {
 
@@ -105,6 +107,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(
+                android.graphics.Color.parseColor("#111D4A")
+            ),
+            navigationBarStyle = SystemBarStyle.dark(
+                android.graphics.Color.parseColor("#111D4A")
+            )
+        )
 
         setContent {
             ProMISClampingTheme {
@@ -135,8 +146,6 @@ class MainActivity : ComponentActivity() {
                         }
 
                         is AuthState.Authenticated -> {
-                            // MASUKKAN DI SINI: Sebaik sahaja login berjaya,
-                            // app terus minta permission Bluetooth untuk semua tab!
                             RequestBluetoothPermissionsEagerly()
 
                             MainTabs(
@@ -155,10 +164,15 @@ private val btPermissions = arrayOf(
     Manifest.permission.BLUETOOTH_SCAN
 )
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DaftarKompaunScreen() {
     val context = LocalContext.current
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -171,164 +185,137 @@ fun DaftarKompaunScreen() {
 
     var lastSaved by remember { mutableStateOf<ClampingResponseForm?>(null) }
 
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    val needsBtConnectPerm = android.os.Build.VERSION.SDK_INT >= 31
-    val btPerms = if (needsBtConnectPerm)
-        arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
-    else emptyArray()
-
-    val permLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* optional: inspect results */ }
-
-    fun hasBtConnectPermission(): Boolean =
-        !needsBtConnectPerm || ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.BLUETOOTH_CONNECT
-        ) == PackageManager.PERMISSION_GRANTED
-
-    // --- Form state ---
     var noKenderaan by remember { mutableStateOf("") }
+    var selectedJenis by remember { mutableStateOf(VehicleType("03", "KERETA")) }
     var blok by remember { mutableStateOf("BLOK F6") }
     var tempatKompaun by remember { mutableStateOf("PARKING") }
 
-    // Control flags
     var isSaving by remember { mutableStateOf(false) }
     var savedId by remember { mutableStateOf<String?>(null) }
-
-    // 🔒 Lock form once successfully saved
     val isFormLocked = savedId != null
 
+    var gambarBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var gambarUri by remember { mutableStateOf<Uri?>(null) }
+    var gambarSizeBytes by remember { mutableStateOf<Long?>(null) }
+
     val blokList = listOf(
-        "BLOK F1",
-        "BLOK F2",
-        "BLOK F3",
-        "BLOK F4",
-        "BLOK F5",
-        "BLOK F6",
-        "BLOK F7",
-        "BLOK F8",
-        "BLOK F9",
-        "BLOK F10"
+        "BLOK F1", "BLOK F2", "BLOK F3", "BLOK F4", "BLOK F5",
+        "BLOK F6", "BLOK F7", "BLOK F8", "BLOK F9", "BLOK F10"
     )
 
+    val pickImage = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        gambarUri = uri
+        gambarSizeBytes = null
+
+        if (uri != null) {
+            runCatching {
+                val size = context.contentResolver.openFileDescriptor(uri, "r")?.statSize
+                gambarSizeBytes = size
+            }
+
+            gambarBitmap = getBitmapWithExif(context, uri)
+        }
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("DAFTAR KOMPAUN") }) },
+        topBar = { TopAppBar(title = { Text("Daftar Kompaun") }) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(48.dp))
 
             Text(
-                text = "Maklumat Kompaun",
-                style = MaterialTheme.typography.titleMedium
+                text = "Daftar Kompaun",
+                style = MaterialTheme.typography.titleLarge,
+                color = com.example.promisclamping.ui.theme.NavyHeader
             )
 
-            // --- No Kenderaan ---
-            OutlinedTextField(
-                value = noKenderaan,
-                onValueChange = { noKenderaan = it.uppercase() },
-                label = { Text("No Kenderaan *") },
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    imeAction = ImeAction.Next,
-                    capitalization = KeyboardCapitalization.Characters
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && !isFormLocked
+            Text(
+                text = "Lengkapkan maklumat kenderaan dan gambar apitan sebelum simpan.",
+                style = MaterialTheme.typography.bodySmall,
+                color = com.example.promisclamping.ui.theme.TextMuted
             )
 
-            // --- Jenis Kenderaan ---
-            var selectedJenis by remember { mutableStateOf(VehicleType("03", "KERETA")) }
-
-            JenisKenderaanDropdown(
-                selected = selectedJenis,
-                onSelect = { selectedJenis = it },
-                enabled = !isSaving && !isFormLocked
-            )
-
-            // --- Blok ---
-            var blokExpanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = blokExpanded,
-                onExpandedChange = { if (!isSaving && !isFormLocked) blokExpanded = !blokExpanded }
+            ModernFormCard(
+                title = "Maklumat Kenderaan",
+                subtitle = "Maklumat asas kompaun yang akan dicetak pada notis."
             ) {
                 OutlinedTextField(
-                    readOnly = true,
-                    value = blok,
-                    onValueChange = {},
-                    label = { Text("Blok") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = blokExpanded) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth(),
+                    value = noKenderaan,
+                    onValueChange = { noKenderaan = it.uppercase() },
+                    label = { Text("No Kenderaan *") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = ImeAction.Next,
+                        capitalization = KeyboardCapitalization.Characters
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     enabled = !isSaving && !isFormLocked
                 )
-                ExposedDropdownMenu(
+
+                JenisKenderaanDropdown(
+                    selected = selectedJenis,
+                    onSelect = { selectedJenis = it },
+                    enabled = !isSaving && !isFormLocked
+                )
+
+                var blokExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
                     expanded = blokExpanded,
-                    onDismissRequest = { blokExpanded = false }) {
-                    blokList.forEach {
-                        DropdownMenuItem(
-                            text = { Text(it) },
-                            onClick = { blok = it; blokExpanded = false })
+                    onExpandedChange = { if (!isSaving && !isFormLocked) blokExpanded = !blokExpanded }
+                ) {
+                    OutlinedTextField(
+                        readOnly = true,
+                        value = blok,
+                        onValueChange = {},
+                        label = { Text("Blok") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = blokExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        enabled = !isSaving && !isFormLocked
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = blokExpanded,
+                        onDismissRequest = { blokExpanded = false }
+                    ) {
+                        blokList.forEach {
+                            DropdownMenuItem(
+                                text = { Text(it) },
+                                onClick = {
+                                    blok = it
+                                    blokExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
+
+                OutlinedTextField(
+                    value = tempatKompaun,
+                    onValueChange = { tempatKompaun = it.uppercase() },
+                    label = { Text("Tempat Kompaun") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving && !isFormLocked
+                )
             }
 
-            // --- Tempat Kompaun ---
-            OutlinedTextField(
-                value = tempatKompaun,
-                onValueChange = { tempatKompaun = it },
-                label = { Text("Tempat Kompaun") },
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && !isFormLocked
-            )
-
-            val context = LocalContext.current
-            var gambarBitmap by remember { mutableStateOf<Bitmap?>(null) }
-            var gambarUri by remember { mutableStateOf<Uri?>(null) }
-            var gambarSizeBytes by remember { mutableStateOf<Long?>(null) }
-
-            val pickImage = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.GetContent()
-            ) { uri ->
-                gambarUri = uri
-                gambarSizeBytes = null
-
-                if (uri != null) {
-                    // Get size
-                    runCatching {
-                        val size = context.contentResolver.openFileDescriptor(uri, "r")?.statSize
-                        gambarSizeBytes = size
-                    }
-
-                    // Decode bitmap for printing
-//                    val inputStream = context.contentResolver.openInputStream(uri)
-//                    val bitmap = BitmapFactory.decodeStream(inputStream)
-//                    inputStream?.close()
-//                    gambarBitmap = bitmap
-
-                    // Decode bitmap for printing - cara baru
-                    gambarBitmap = getBitmapWithExif(context, uri)
-                }
-            }
-
-            Divider()
-
-            // --- Gambar Upload ---
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Gambar Apitan")
+            ModernFormCard(
+                title = "Gambar Apitan",
+                subtitle = "Muat naik gambar bukti apitan tayar untuk rekod dan cetakan."
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { if (!isSaving && !isFormLocked) pickImage.launch("image/*") },
@@ -336,12 +323,14 @@ fun DaftarKompaunScreen() {
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SecondaryBlue,
                             contentColor = Color.White
-                        )
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
                     ) {
                         Icon(Icons.Default.Upload, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text("Muat Naik")
                     }
+
                     if (gambarUri != null) {
                         AssistChip(
                             onClick = { if (!isSaving && !isFormLocked) pickImage.launch("image/*") },
@@ -352,34 +341,51 @@ fun DaftarKompaunScreen() {
                 }
 
                 val sizeOk = gambarSizeBytes?.let { it <= 5L * 1024 * 1024 } ?: true
+
                 if (gambarUri != null) {
+                    Surface(
+                        color = Color(0xFFEAF2FF),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Dipilih: ${gambarUri?.lastPathSegment ?: ""} " +
+                                    (gambarSizeBytes?.let { "(${it / 1024} KB)" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = com.example.promisclamping.ui.theme.NavyHeader,
+                            modifier = Modifier.padding(12.dp),
+                            maxLines = 2
+                        )
+                    }
+                }
+
+                if (!sizeOk) {
                     Text(
-                        text = "Dipilih: ${gambarUri?.lastPathSegment ?: ""} " +
-                                (gambarSizeBytes?.let { "(${it / 1024} KB)" } ?: ""),
+                        "Saiz gambar melebihi 5 MB",
+                        color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
-                if (!sizeOk) {
-                    Text("⚠️ Saiz melebihi 5 MB", color = MaterialTheme.colorScheme.error)
-                }
             }
 
-            // --- Buttons ---
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ModernFormCard(
+                title = "Tindakan",
+                subtitle = if (savedId == null) {
+                    "Simpan dahulu sebelum mencetak notis."
+                } else {
+                    "Kompaun telah disimpan. Notis boleh dicetak atau daftar rekod baharu."
+                }
             ) {
-                /* 🟩 SIMPAN */
                 Button(
                     enabled = !isSaving && !isFormLocked,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryGreen,
                         contentColor = Color.White
                     ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         scope.launch {
-                            // basic validation
                             when {
                                 noKenderaan.isBlank() -> {
                                     snackbarHostState.showSnackbar("Isi No Kenderaan.")
@@ -403,10 +409,9 @@ fun DaftarKompaunScreen() {
                                         return@launch
                                     }
 
-                                    val bucket = Config.BUCKET_NAME
                                     val resp = ApiClient.upload(ctx).uploadImage(
                                         file = fp.part,
-                                        bucketName = bucket.asTextPart()
+                                        bucketName = Config.BUCKET_NAME.asTextPart()
                                     )
 
                                     if (!resp.isSuccessful || resp.body() == null) {
@@ -416,16 +421,13 @@ fun DaftarKompaunScreen() {
                                     }
 
                                     val body = resp.body()!!
-                                    val fileName = fp.fileName
-                                    gambarPath = "${body.bucketname}/${body.pathId}/$fileName"
+                                    gambarPath = "${body.bucketname}/${body.pathId}/${fp.fileName}"
                                 }
-
-                                val jenisId = selectedJenis?.id
 
                                 val request = ClampingRequestForm(
                                     id = null,
                                     noKenderaan = noKenderaan,
-                                    jenisKenderaan = jenisId.toString(),
+                                    jenisKenderaan = selectedJenis.id,
                                     blok = blok,
                                     tempat = tempatKompaun,
                                     lokasi = null,
@@ -468,16 +470,15 @@ fun DaftarKompaunScreen() {
                     Text(if (isSaving) "Menyimpan..." else "Simpan")
                 }
 
-                val scope = rememberCoroutineScope()
+                val printScope = rememberCoroutineScope()
                 var isPrinting by remember { mutableStateOf(false) }
 
-                /* 🟦 CETAK (only visible after save) */
                 AnimatedVisibility(visible = !isSaving && savedId != null) {
                     OutlinedButton(
                         onClick = {
                             if (isPrinting) return@OutlinedButton
 
-                            scope.launch {
+                            printScope.launch {
                                 isPrinting = true
                                 try {
                                     val missing = btPermissions.any {
@@ -493,33 +494,33 @@ fun DaftarKompaunScreen() {
                                             "Sila benarkan Bluetooth dahulu, kemudian tekan cetak semula"
                                         )
                                         return@launch
+                                    }
+
+                                    if (gambarBitmap != null) {
+                                        printBphNotisCajWithSdkV2(
+                                            DEV_MAC_ADD, context, gambarBitmap,
+                                            noSiri = lastSaved?.noKompaun ?: "-",
+                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                            masa = lastSaved?.masaKompaunStr ?: "-",
+                                            noKenderaan = noKenderaan,
+                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                            jenisKenderaan = selectedJenis.label,
+                                            lokasi = lastSaved?.lokasi ?: "-",
+                                            pegawai = lastSaved?.namaPegawai ?: "-",
+                                            savedId = savedId!!
+                                        )
                                     } else {
-                                        if (gambarBitmap != null) {
-                                            printBphNotisCajWithSdkV2(
-                                                DEV_MAC_ADD, context, gambarBitmap,
-                                                noSiri = lastSaved?.noKompaun ?: "-",
-                                                tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-                                                masa = lastSaved?.masaKompaunStr ?: "-",
-                                                noKenderaan = noKenderaan,
-                                                kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-                                                jenisKenderaan = selectedJenis?.label ?: "",
-                                                lokasi = lastSaved?.lokasi ?: "-",
-                                                pegawai = lastSaved?.namaPegawai ?: "-",
-                                                savedId = savedId!!
-                                            )
-                                        } else {
-                                            printBphNotisCajWithSdkV2(
-                                                DEV_MAC_ADD, context,
-                                                noSiri = lastSaved?.noKompaun ?: "-",
-                                                tarikh = lastSaved?.tarikhKompaunStr ?: "-",
-                                                masa = lastSaved?.masaKompaunStr ?: "-",
-                                                noKenderaan = noKenderaan,
-                                                kadarCaj = "RM ${lastSaved?.kadarKompaun}",
-                                                jenisKenderaan = selectedJenis?.label ?: "",
-                                                lokasi = lastSaved?.lokasi ?: "-",
-                                                pegawai = lastSaved?.namaPegawai ?: "-"
-                                            )
-                                        }
+                                        printBphNotisCajWithSdkV2(
+                                            DEV_MAC_ADD, context,
+                                            noSiri = lastSaved?.noKompaun ?: "-",
+                                            tarikh = lastSaved?.tarikhKompaunStr ?: "-",
+                                            masa = lastSaved?.masaKompaunStr ?: "-",
+                                            noKenderaan = noKenderaan,
+                                            kadarCaj = "RM ${lastSaved?.kadarKompaun}",
+                                            jenisKenderaan = selectedJenis.label,
+                                            lokasi = lastSaved?.lokasi ?: "-",
+                                            pegawai = lastSaved?.namaPegawai ?: "-"
+                                        )
                                     }
 
                                     snackbarHostState.showSnackbar("Cetak dihantar ✅")
@@ -531,36 +532,80 @@ fun DaftarKompaunScreen() {
                             }
                         },
                         enabled = !isPrinting,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(if (isPrinting) "Mencetak..." else "Cetak Kompaun")
                     }
                 }
 
-                /* 🟨 DAFTAR BARU */
                 OutlinedButton(
                     onClick = {
                         noKenderaan = ""
                         selectedJenis = VehicleType("03", "KERETA")
-                        blok = blokList.first()
+                        blok = "BLOK F6"
                         tempatKompaun = "PARKING"
                         gambarUri = null
                         gambarSizeBytes = null
                         gambarBitmap = null
                         savedId = null
                         lastSaved = null
-                        isSaving = false     // just to be safe
+                        isSaving = false
                     },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Daftar Baru")
                 }
             }
 
-            Spacer(Modifier.height(30.dp))
+            Spacer(Modifier.height(120.dp))
         }
     }
 }
+
+@Composable
+private fun ModernFormCard(
+    title: String,
+    subtitle: String? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
+    androidx.compose.material3.Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = com.example.promisclamping.ui.theme.NavyHeader
+                )
+
+                if (!subtitle.isNullOrBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = com.example.promisclamping.ui.theme.TextMuted
+                    )
+                }
+            }
+
+            androidx.compose.material3.HorizontalDivider(color = Color(0xFFE5E7EB))
+
+            content()
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
