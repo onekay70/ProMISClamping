@@ -50,7 +50,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
-import com.example.promisclamping.BuildConfig
+//import com.example.promisclamping.BuildConfig
 
 @Composable
 fun LoginScreen(
@@ -60,13 +60,15 @@ fun LoginScreen(
 ) {
     var username by remember {
         mutableStateOf(
-            if (BuildConfig.DEBUG) "971103025908" else ""
+//            if (BuildConfig.DEBUG) "971103025908" else ""
+            ""
         )
     }
 
     var password by remember {
         mutableStateOf(
-            if (BuildConfig.DEBUG) "Promis@112233" else ""
+//            if (BuildConfig.DEBUG) "Promis@112233" else ""
+            ""
         )
     }
 

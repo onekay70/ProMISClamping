@@ -4,18 +4,18 @@ object Config {
     // API base URLs
 //    const val KOMPAUN_BASE_URL = "http://192.168.1.5:8093/"
 //    const val KOMPAUN_BASE_URL = "http://10.28.94.178:8093/"
-//    const val KOMPAUN_BASE_URL = "https://gerbang.lokal.my/api/penguatkuasaan/v1/"
-    const val KOMPAUN_BASE_URL = "https://gerbang.bph.gov.my/api/penguatkuasaan/v1/"
+    const val KOMPAUN_BASE_URL = "https://gerbang.lokal.my/api/penguatkuasaan/v1/"
+//    const val KOMPAUN_BASE_URL = "https://gerbang.bph.gov.my/api/penguatkuasaan/v1/"
 
 //    const val UPLOAD_BASE_URL = "http://192.168.1.5:8091/"
 //    const val UPLOAD_BASE_URL = "http://10.28.94.178:8091/"
-//    const val UPLOAD_BASE_URL = "https://gerbang.lokal.my/api/upload/v1/"
-    const val UPLOAD_BASE_URL = "https://gerbang.bph.gov.my/api/upload/v1/"
+    const val UPLOAD_BASE_URL = "https://gerbang.lokal.my/api/upload/v1/"
+//    const val UPLOAD_BASE_URL = "https://gerbang.bph.gov.my/api/upload/v1/"
 
 //    const val PENTADBIRAN_LOGIN_BASE_URL = "http://192.168.1.5:8089/"
 //    const val PENTADBIRAN_LOGIN_BASE_URL = "http://10.28.94.178:8089/"
-//    const val PENTADBIRAN_LOGIN_BASE_URL = "https://gerbang.lokal.my/api/pentadbiran/v1/"
-    const val PENTADBIRAN_LOGIN_BASE_URL = "https://gerbang.bph.gov.my/api/pentadbiran/v1/"
+    const val PENTADBIRAN_LOGIN_BASE_URL = "https://gerbang.lokal.my/api/pentadbiran/v1/"
+//    const val PENTADBIRAN_LOGIN_BASE_URL = "https://gerbang.bph.gov.my/api/pentadbiran/v1/"
 
     const val PENTADBIRAN_PUBLIC_BASE_URL = "https://gerbang.bph.gov.my/api/pentadbiran/v1/"
 
